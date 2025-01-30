@@ -1,0 +1,15 @@
+[submodule "vendor/cgltf"]
+	path = vendor/cgltf
+	url = https://github.com/jkuhlmann/cgltf
+[submodule "vendor/glfw"]
+	path = vendor/glfw
+	url = https://github.com/glfw/glfw
+[submodule "vendor/glm"]
+	path = vendor/glm
+	url = https://github.com/g-truc/glm
+[submodule "vendor/imgui"]
+	path = vendor/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "vendor/volk"]
+	path = vendor/volk
+	url = https://github.com/zeux/volk
