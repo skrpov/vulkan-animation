@@ -2,7 +2,7 @@
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
 
-bool Renderer::CreateInstance() 
+bool Renderer::CreateInstance()
 {
     VkApplicationInfo appInfo = {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -17,19 +17,19 @@ bool Renderer::CreateInstance()
     instanceCI.enabledExtensionCount = ARRAY_COUNT(instanceExtensions);
     instanceCI.ppEnabledExtensionNames = instanceExtensions;
     VK_CHECK(vkCreateInstance(&instanceCI, nullptr, &m_instance));
-    
+
     volkLoadInstance(m_instance);
 
     return true;
 }
 
-bool Renderer::CreateSurface(GLFWwindow *window) 
+bool Renderer::CreateSurface(GLFWwindow *window)
 {
     VK_CHECK(glfwCreateWindowSurface(m_instance, window, nullptr, &m_surface));
     return true;
 }
 
-bool Renderer::ChoosePhysicalDevice() 
+bool Renderer::ChoosePhysicalDevice()
 {
     std::vector<VkPhysicalDevice> physicalDevices;
     uint32_t physicalDeviceCount = 0;
@@ -68,12 +68,11 @@ bool Renderer::ChoosePhysicalDevice()
             VkPhysicalDeviceProperties properties = {};
             vkGetPhysicalDeviceProperties(physicalDevice, &properties);
             if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-                // If found a integrated gpu that is supported, keep it unless there is a discrete one 
+                // If found a integrated gpu that is supported, keep it unless there is a discrete one
                 // found later.
                 break;
             }
         }
-
     }
 
     if (m_physicalDevice == nullptr) {
@@ -83,7 +82,7 @@ bool Renderer::ChoosePhysicalDevice()
     return true;
 }
 
-bool Renderer::CreateDevice() 
+bool Renderer::CreateDevice()
 {
     const float queuePriority = 1.0f;
     const uint32_t uniqueFamilyIndexCount = m_graphicsFamilyIndex == m_presentFamilyIndex ? 1 : 2;
@@ -127,7 +126,7 @@ bool Renderer::CreateDevice()
     return true;
 }
 
-bool Renderer::CreateSwapchain(GLFWwindow *window) 
+bool Renderer::CreateSwapchain(GLFWwindow *window)
 {
     // Specifically the families which access the swapchain. So potentially different from the device.
     const uint32_t uniqueFamilyIndexCount = m_graphicsFamilyIndex == m_presentFamilyIndex ? 1 : 2;
@@ -153,7 +152,7 @@ bool Renderer::CreateSwapchain(GLFWwindow *window)
     swapchainCI.pQueueFamilyIndices = uniqueFamilyIndices;
     swapchainCI.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     swapchainCI.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    swapchainCI.presentMode =  VK_PRESENT_MODE_FIFO_KHR;
+    swapchainCI.presentMode = VK_PRESENT_MODE_FIFO_KHR;
     swapchainCI.clipped = VK_TRUE;
     swapchainCI.oldSwapchain = nullptr;
     VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCI, nullptr, &m_swapchain));
@@ -225,7 +224,7 @@ bool Renderer::CreateDescriptorSetLayouts()
     return true;
 }
 
-bool Renderer::CreateFrameData() 
+bool Renderer::CreateFrameData()
 {
     VkCommandPoolCreateInfo commandPoolCI = {};
     commandPoolCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -316,21 +315,18 @@ bool Renderer::CreatePipelineLayouts()
 
 bool Renderer::ReadFileBytes(const char *path, std::vector<uint8_t> &outBytes)
 {
-    bool result =  true;
+    bool result = true;
     FILE *fp = fopen(path, "rb");
-    if (fp) 
-    {
+    if (fp) {
         fseek(fp, 0L, SEEK_END);
         uint32_t fileSize = (uint32_t)ftell(fp);
         rewind(fp);
 
         outBytes.resize(fileSize);
-        if (fread(&outBytes[0], fileSize, 1, fp) != 1) 
+        if (fread(&outBytes[0], fileSize, 1, fp) != 1)
             result = false;
         fclose(fp);
-    }
-    else 
-    {
+    } else {
         result = false;
     }
 
@@ -353,13 +349,11 @@ bool Renderer::CreateGraphicsPipelines()
     VkShaderModule fragmentShader = nullptr;
     std::vector<uint8_t> bytes;
 
-    if (!ReadFileBytes("./shaders/shader.vert.spv", bytes)
-            || !CompileShader(&bytes[0], bytes.size(), vertexShader)) {
+    if (!ReadFileBytes("./shaders/shader.vert.spv", bytes) || !CompileShader(&bytes[0], bytes.size(), vertexShader)) {
         return false;
     }
 
-    if (!ReadFileBytes("./shaders/shader.frag.spv", bytes) 
-            || !CompileShader(&bytes[0], bytes.size(), fragmentShader)) {
+    if (!ReadFileBytes("./shaders/shader.frag.spv", bytes) || !CompileShader(&bytes[0], bytes.size(), fragmentShader)) {
         return false;
     }
 
@@ -384,11 +378,11 @@ bool Renderer::CreateGraphicsPipelines()
 
     const VkVertexInputAttributeDescription attributes[] = {
         // location; binding; format; offset;
-        {0, 0, VK_FORMAT_R32G32B32_SFLOAT,      (uint32_t)offsetof(Vertex, position)},
-        {1, 0, VK_FORMAT_R32G32B32_SFLOAT,      (uint32_t)offsetof(Vertex, normal)},
-        {2, 0, VK_FORMAT_R32G32_SFLOAT,         (uint32_t)offsetof(Vertex, texCoord)},
-        {3, 0, VK_FORMAT_R32G32B32A32_SINT,     (uint32_t)offsetof(Vertex, joints)},
-        {4, 0, VK_FORMAT_R32G32B32A32_SFLOAT,   (uint32_t)offsetof(Vertex, weights)},
+        {0, 0, VK_FORMAT_R32G32B32_SFLOAT, (uint32_t)offsetof(Vertex, position)},
+        {1, 0, VK_FORMAT_R32G32B32_SFLOAT, (uint32_t)offsetof(Vertex, normal)},
+        {2, 0, VK_FORMAT_R32G32_SFLOAT, (uint32_t)offsetof(Vertex, texCoord)},
+        {3, 0, VK_FORMAT_R32G32B32A32_SINT, (uint32_t)offsetof(Vertex, joints)},
+        {4, 0, VK_FORMAT_R32G32B32A32_SFLOAT, (uint32_t)offsetof(Vertex, weights)},
     };
 
     VkPipelineVertexInputStateCreateInfo vertexInputCI = {};
@@ -432,7 +426,7 @@ bool Renderer::CreateGraphicsPipelines()
     // multisampleCI.pSampleMask;
     // multisampleCI.alphaToCoverageEnable;
     // multisampleCI.alphaToOneEnable;
-    
+
     VkPipelineDepthStencilStateCreateInfo depthStencilCI = {};
     depthStencilCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencilCI.depthTestEnable = VK_TRUE;
@@ -451,11 +445,8 @@ bool Renderer::CreateGraphicsPipelines()
     // colorAttachmentInfo.srcAlphaBlendFactor;
     // colorAttachmentInfo.dstAlphaBlendFactor;
     // colorAttachmentInfo.alphaBlendOp;
-    colorAttachmentInfo.colorWriteMask = 
-        VK_COLOR_COMPONENT_R_BIT |
-        VK_COLOR_COMPONENT_G_BIT |
-        VK_COLOR_COMPONENT_B_BIT |
-        VK_COLOR_COMPONENT_A_BIT;
+    colorAttachmentInfo.colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
     VkPipelineColorBlendStateCreateInfo colorBlendCI = {};
     colorBlendCI.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -466,7 +457,7 @@ bool Renderer::CreateGraphicsPipelines()
 
     VkPipelineDynamicStateCreateInfo dynamicCI = {};
     dynamicCI.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicCI.dynamicStateCount = sizeof(dynamicStates)/sizeof(dynamicStates[0]);
+    dynamicCI.dynamicStateCount = sizeof(dynamicStates) / sizeof(dynamicStates[0]);
     dynamicCI.pDynamicStates = dynamicStates;
 
     VkPipelineRenderingCreateInfo renderingCI = {};
@@ -482,7 +473,7 @@ bool Renderer::CreateGraphicsPipelines()
     pipelineCI.stageCount = ARRAY_COUNT(shaderStages);
     pipelineCI.pStages = shaderStages;
     pipelineCI.pVertexInputState = &vertexInputCI;
-    pipelineCI.pInputAssemblyState =  &inputAssemblyCI;
+    pipelineCI.pInputAssemblyState = &inputAssemblyCI;
     pipelineCI.pTessellationState = nullptr;
     pipelineCI.pViewportState = &viewportCI;
     pipelineCI.pRasterizationState = &rasterizationCI;
@@ -500,7 +491,8 @@ bool Renderer::CreateGraphicsPipelines()
     return true;
 }
 
-bool Renderer::AllocateDeviceMemory(VkMemoryRequirements requirements,VkMemoryPropertyFlags propertyFlags, VkDeviceMemory &outMemory)
+bool Renderer::AllocateDeviceMemory(VkMemoryRequirements requirements, VkMemoryPropertyFlags propertyFlags,
+                                    VkDeviceMemory &outMemory)
 {
     outMemory = nullptr;
     for (uint32_t i = 0; i < m_memoryProperties.memoryTypeCount; ++i) {
@@ -523,14 +515,14 @@ bool Renderer::AllocateDeviceMemory(VkMemoryRequirements requirements,VkMemoryPr
     return true;
 }
 
-void Renderer::DestroyDepthBuffer() 
+void Renderer::DestroyDepthBuffer()
 {
     vkDestroyImageView(m_device, m_depthBufferImageView, nullptr);
     vkFreeMemory(m_device, m_depthBufferMemory, nullptr);
     vkDestroyImage(m_device, m_depthBufferImage, nullptr);
 }
 
-bool Renderer::CreateDepthBuffer() 
+bool Renderer::CreateDepthBuffer()
 {
     m_depthBufferFormat = VK_FORMAT_D32_SFLOAT;
 
@@ -568,7 +560,7 @@ bool Renderer::CreateDepthBuffer()
     return true;
 }
 
-bool Renderer::CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, AllocatedBuffer &outBuffer) 
+bool Renderer::CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, AllocatedBuffer &outBuffer)
 {
     VkBufferCreateInfo bufferCI = {};
     bufferCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -590,21 +582,13 @@ bool Renderer::CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, Allocat
 
 bool Renderer::InitVulkan(GLFWwindow *window)
 {
-    return 
-        CreateInstance() &&
-        CreateSurface(window) &&
-        ChoosePhysicalDevice() && 
-        CreateDevice() && 
-        CreateSwapchain(window) && 
-        CreateDepthBuffer() &&
-        CreateDescriptorSetLayouts() &&
-        CreateFrameData() && 
-        CreatePipelineLayouts() &&
-        CreateGraphicsPipelines();
+    return CreateInstance() && CreateSurface(window) && ChoosePhysicalDevice() && CreateDevice() &&
+           CreateSwapchain(window) && CreateDepthBuffer() && CreateDescriptorSetLayouts() && CreateFrameData() &&
+           CreatePipelineLayouts() && CreateGraphicsPipelines();
 }
 
-static void TransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkImageLayout oldLayout, 
-        VkImageLayout newLayout, VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT) 
+static void TransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkImageLayout oldLayout,
+                                  VkImageLayout newLayout, VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT)
 {
     VkImageMemoryBarrier2 imageBarrier = {};
     imageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -633,11 +617,11 @@ static void TransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, 
 // Model Loader
 //
 
-static void LoadNode(const cgltf_data *gltf, const cgltf_node *node, Node &outNode) 
+static void LoadNode(const cgltf_data *gltf, const cgltf_node *node, Node &outNode)
 {
     outNode.scale = node->has_scale ? glm::make_vec3(node->scale) : glm::vec3(1);
     outNode.translation = node->has_translation ? glm::make_vec3(node->translation) : glm::vec3(0);
-    outNode.rotation = node->has_rotation ? glm::make_quat(node->rotation) : glm::quat() ;
+    outNode.rotation = node->has_rotation ? glm::make_quat(node->rotation) : glm::quat();
     outNode.matrix = node->has_matrix ? glm::make_mat4(node->matrix) : glm::mat4(1);
     outNode.meshIndex = node->mesh ? cgltf_mesh_index(gltf, node->mesh) : UINT32_MAX;
     outNode.nodeIndex = cgltf_node_index(gltf, node);
@@ -665,9 +649,8 @@ static Node *GetNodeByIndex(Node &node, uint32_t nodeIndex)
 
 static inline InterpolationMethod ConvertInterpolation(cgltf_interpolation_type method)
 {
-    switch (method) 
-    {
-    case cgltf_interpolation_type_linear: 
+    switch (method) {
+    case cgltf_interpolation_type_linear:
         return InterpolationMethod_Linear;
     default:
         break;
@@ -676,7 +659,7 @@ static inline InterpolationMethod ConvertInterpolation(cgltf_interpolation_type 
     return InterpolationMethod_Linear;
 }
 
-static void LoadAnimations(const cgltf_data *gltf, Model &model) 
+static void LoadAnimations(const cgltf_data *gltf, Model &model)
 {
     for (const auto *anim = gltf->animations; anim != gltf->animations + gltf->animations_count; ++anim) {
         Animation &outAnim = model.animations.emplace_back();
@@ -689,7 +672,7 @@ static void LoadAnimations(const cgltf_data *gltf, Model &model)
                 continue;
             }
 
-            AnimationSampler *outSampler= nullptr;
+            AnimationSampler *outSampler = nullptr;
             for (uint32_t i = 0; i < outAnim.samplers.size(); ++i) {
                 if (outAnim.samplers[i].node == node) {
                     outSampler = &outAnim.samplers[i];
@@ -736,21 +719,21 @@ static void LoadAnimations(const cgltf_data *gltf, Model &model)
                 switch (chan->target_path) {
                 case cgltf_animation_path_type_translation:
                     for (uint32_t i = 0; i < accessor->count; ++i) {
-                        outSampler->translation.values.push_back(glm::make_vec3(&values[i*3]));
+                        outSampler->translation.values.push_back(glm::make_vec3(&values[i * 3]));
                         outSampler->translation.times.push_back(times[i]);
                     }
                     outSampler->translation.method = ConvertInterpolation(sampler->interpolation);
                     break;
                 case cgltf_animation_path_type_scale:
                     for (uint32_t i = 0; i < accessor->count; ++i) {
-                        outSampler->scale.values.push_back(glm::make_vec3(&values[i*3]));
+                        outSampler->scale.values.push_back(glm::make_vec3(&values[i * 3]));
                         outSampler->scale.times.push_back(times[i]);
                     }
                     outSampler->scale.method = ConvertInterpolation(sampler->interpolation);
                     break;
                 case cgltf_animation_path_type_rotation:
                     for (uint32_t i = 0; i < accessor->count; ++i) {
-                        outSampler->rotation.values.push_back(glm::make_quat(&values[i*4]));
+                        outSampler->rotation.values.push_back(glm::make_quat(&values[i * 4]));
                         outSampler->rotation.times.push_back(times[i]);
                     }
                     outSampler->rotation.method = ConvertInterpolation(sampler->interpolation);
@@ -761,7 +744,7 @@ static void LoadAnimations(const cgltf_data *gltf, Model &model)
     }
 }
 
-bool Renderer::LoadModel(const char *path) 
+bool Renderer::LoadModel(const char *path)
 {
     cgltf_options options = {};
     cgltf_data *gltf = nullptr;
@@ -788,7 +771,8 @@ bool Renderer::LoadModel(const char *path)
                     const uint16_t *joints = nullptr;
                     const float *weights = nullptr;
 
-                    for (const auto *attrib = prim->attributes; attrib != prim->attributes + prim->attributes_count; ++attrib) {
+                    for (const auto *attrib = prim->attributes; attrib != prim->attributes + prim->attributes_count;
+                         ++attrib) {
                         const auto *accessor = attrib->data;
                         const auto *bufferView = accessor->buffer_view;
                         const auto *buffer = bufferView->buffer;
@@ -804,7 +788,7 @@ bool Renderer::LoadModel(const char *path)
                         case cgltf_attribute_type_normal:
                             assert(accessor->component_type == cgltf_component_type_r_32f);
                             assert(accessor->type == cgltf_type_vec3);
-                            normals  = (const float *)data;
+                            normals = (const float *)data;
                             break;
                         case cgltf_attribute_type_texcoord:
                             assert(accessor->component_type == cgltf_component_type_r_32f);
@@ -824,7 +808,7 @@ bool Renderer::LoadModel(const char *path)
                         }
                     }
 
-                    const uint32_t indexOffset  = (uint32_t)indices.size();
+                    const uint32_t indexOffset = (uint32_t)indices.size();
                     const uint32_t vertexOffset = (uint32_t)vertices.size();
 
                     if (prim->indices) {
@@ -834,16 +818,16 @@ bool Renderer::LoadModel(const char *path)
                         const auto *data = ((uint8_t *)buffer->data) + accessor->offset + bufferView->offset;
 
                         switch (accessor->component_type) {
-                            case cgltf_component_type_r_32u:
-                                for (uint32_t i = 0; i < accessor->count; ++i) {
-                                    indices.push_back(vertexOffset + ((const uint32_t *)data)[i]);
-                                }
-                                break;
-                            case cgltf_component_type_r_16u:
-                                for (uint32_t i = 0; i < accessor->count; ++i) {
-                                    indices.push_back(vertexOffset + ((const uint16_t *)data)[i]);
-                                }
-                                break;
+                        case cgltf_component_type_r_32u:
+                            for (uint32_t i = 0; i < accessor->count; ++i) {
+                                indices.push_back(vertexOffset + ((const uint32_t *)data)[i]);
+                            }
+                            break;
+                        case cgltf_component_type_r_16u:
+                            for (uint32_t i = 0; i < accessor->count; ++i) {
+                                indices.push_back(vertexOffset + ((const uint16_t *)data)[i]);
+                            }
+                            break;
                         }
                     } else {
                         for (uint32_t i = 0; i < positionCount; ++i) {
@@ -853,26 +837,28 @@ bool Renderer::LoadModel(const char *path)
 
                     for (uint32_t i = 0; i < positionCount; ++i) {
                         Vertex v = {};
-                        v.position = glm::make_vec3(&positions[i*3]);
-                        v.normal = normals ? glm::make_vec3(&normals[i*3]) : glm::vec3(0);
-                        v.texCoord = texCoords ? glm::make_vec2(&texCoords[i*2]) : glm::vec2(0);
-                        v.joints = joints ? glm::ivec4(joints[i*4+0], joints[i*4+1], joints[i*4+2], joints[i*4+3]) : glm::ivec4(0);
-                        v.weights = weights ? glm::make_vec4(&weights[i*4]) : glm::vec4(0);
+                        v.position = glm::make_vec3(&positions[i * 3]);
+                        v.normal = normals ? glm::make_vec3(&normals[i * 3]) : glm::vec3(0);
+                        v.texCoord = texCoords ? glm::make_vec2(&texCoords[i * 2]) : glm::vec2(0);
+                        v.joints = joints ? glm::ivec4(joints[i * 4 + 0], joints[i * 4 + 1], joints[i * 4 + 2],
+                                                       joints[i * 4 + 3])
+                                          : glm::ivec4(0);
+                        v.weights = weights ? glm::make_vec4(&weights[i * 4]) : glm::vec4(0);
                         vertices.push_back(v);
                     }
 
                     auto &outPrim = model.primitives.emplace_back();
                     outPrim.indexOffset = indexOffset;
-                    outPrim.indexCount  = (uint32_t)indices.size() - indexOffset;
+                    outPrim.indexCount = (uint32_t)indices.size() - indexOffset;
                 }
 
                 auto &outMesh = model.meshes.emplace_back();
                 outMesh.primitiveOffset = primitiveOffset;
-                outMesh.primitiveCount  = (uint32_t)model.primitives.size() - primitiveOffset;
+                outMesh.primitiveCount = (uint32_t)model.primitives.size() - primitiveOffset;
             }
 
-            const VkDeviceSize vertexBufferSize = sizeof(vertices[0])*vertices.size();
-            const VkDeviceSize indexBufferSize = sizeof(indices[0])*indices.size();
+            const VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
+            const VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
             if (!CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBufferSize, model.vertexBuffer)) {
                 return false;
             }
@@ -896,7 +882,7 @@ bool Renderer::LoadModel(const char *path)
                     uint32_t jointsBufferSize = jointsCount * sizeof(glm::mat4);
 
                     { // Per frame written data.
-                      
+
                         VkDescriptorSetLayout layouts[MAX_FRAMES_IN_FLIGHT] = {};
                         for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
                             layouts[i] = m_jointsDescriptorsLayout;
@@ -913,7 +899,8 @@ bool Renderer::LoadModel(const char *path)
                         for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
                             outSkin.jointMatrices[i].resize(jointsCount);
 
-                            if (!CreateBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, jointsBufferSize, outSkin.jointMatricesBuffer[i])) {
+                            if (!CreateBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, jointsBufferSize,
+                                              outSkin.jointMatricesBuffer[i])) {
                                 return false;
                             }
 
@@ -930,14 +917,14 @@ bool Renderer::LoadModel(const char *path)
                             writeInfo.descriptorCount = 1;
                             writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                             writeInfo.pBufferInfo = &bufferInfo;
-                                
+
                             vkUpdateDescriptorSets(m_device, 1, &writeInfo, 0, nullptr);
                         }
                     }
 
                     for (uint32_t i = 0; i < accessor->count; ++i) {
                         uint32_t nodeIndex = cgltf_node_index(gltf, skin->joints[i]);
-                        outSkin.inverseBindMatrices.push_back(glm::make_mat4(&values[i*16]));
+                        outSkin.inverseBindMatrices.push_back(glm::make_mat4(&values[i * 16]));
                         outSkin.joints.push_back(GetNodeByIndex(model.rootNode, nodeIndex));
                     }
                 }
@@ -955,7 +942,7 @@ bool Renderer::LoadModel(const char *path)
 // Rendering logic
 //
 
-void Model::UpdateAnimations(float dt) 
+void Model::UpdateAnimations(float dt)
 {
     if (playingAnimation == nullptr) {
         return;
@@ -991,7 +978,7 @@ void Model::UpdateTransforms(glm::mat4 parentMatrix, Node &node)
     }
 }
 
-void Renderer::RenderNode(VkCommandBuffer commandBuffer, uint32_t frameIndex, Model &model, const Node &node) 
+void Renderer::RenderNode(VkCommandBuffer commandBuffer, uint32_t frameIndex, Model &model, const Node &node)
 {
     const auto &worldMatrix = node.worldMatrix;
 
@@ -1012,10 +999,10 @@ void Renderer::RenderNode(VkCommandBuffer commandBuffer, uint32_t frameIndex, Mo
             jointMatrices[i] = joints[i]->worldMatrix * inverseBindMatrices[i];
             jointMatrices[i] = rootNodeInverse * jointMatrices[i];
         }
-        memcpy(jointMatricesBuffer.data, &jointMatrices[0], jointMatrices.size()*sizeof(jointMatrices[0]));
+        memcpy(jointMatricesBuffer.data, &jointMatrices[0], jointMatrices.size() * sizeof(jointMatrices[0]));
 
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 
-                    1, 1, &descriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 1, 1, &descriptorSet,
+                                0, nullptr);
     }
 
     if (node.meshIndex != UINT32_MAX) {
@@ -1025,8 +1012,8 @@ void Renderer::RenderNode(VkCommandBuffer commandBuffer, uint32_t frameIndex, Mo
 
             Constants constants = {};
             constants.model = worldMatrix;
-            vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 
-                    0, sizeof(constants), &constants);
+            vkCmdPushConstants(commandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(constants),
+                               &constants);
             vkCmdDrawIndexed(commandBuffer, prim.indexCount, 1, prim.indexOffset, 0, 0);
         }
     }
@@ -1036,7 +1023,7 @@ void Renderer::RenderNode(VkCommandBuffer commandBuffer, uint32_t frameIndex, Mo
     }
 }
 
-bool Renderer::Init(GLFWwindow *window) 
+bool Renderer::Init(GLFWwindow *window)
 {
     VK_CHECK(volkInitialize());
     if (!InitVulkan(window)) {
@@ -1049,16 +1036,16 @@ bool Renderer::Init(GLFWwindow *window)
     if (!LoadModel("./assets/DamagedHelmet.glb")) {
         return false;
     }
-#else   
-    #if 1
+#else
+#if 1
     if (!LoadModel("./assets/CesiumMan.glb")) {
         return false;
     }
-    #else 
+#else
     if (!LoadModel("./assets/RiggedFigure.glb")) {
         return false;
     }
-    #endif
+#endif
 
     Model &model = m_models.back();
     model.playingAnimation = &model.animations[0];
@@ -1066,8 +1053,8 @@ bool Renderer::Init(GLFWwindow *window)
 
     const Vertex vertices[] = {
         {glm::vec3(-0.5f, -0.5f, 0.0f)},
-        {glm::vec3( 0.5f, -0.5f, 0.0f)},
-        {glm::vec3( 0.5f,  0.5f, 0.0f)},
+        {glm::vec3(0.5f, -0.5f, 0.0f)},
+        {glm::vec3(0.5f, 0.5f, 0.0f)},
     };
     if (!CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, sizeof(vertices), m_vertexBuffer)) {
         return false;
@@ -1083,17 +1070,17 @@ void Renderer::DestroySwapchain()
     vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
 }
 
-bool Renderer::HandleResize(GLFWwindow *window) 
+bool Renderer::HandleResize(GLFWwindow *window)
 {
     VK_CHECK(vkDeviceWaitIdle(m_device));
     DestroyDepthBuffer();
     DestroySwapchain();
-    if (!CreateSwapchain(window) || !CreateDepthBuffer()) 
+    if (!CreateSwapchain(window) || !CreateDepthBuffer())
         return false;
     return true;
 }
 
-bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt) 
+bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
 {
     if (!HandleResize(window)) {
         return false;
@@ -1119,12 +1106,10 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
     vkBeginCommandBuffer(commandBuffer, &beginInfo);
     {
 
-        TransitionImageLayout(
-                commandBuffer, m_swapchainImages[imageIndex], 
-                VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        TransitionImageLayout(
-                commandBuffer, m_depthBufferImage, 
-                VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+        TransitionImageLayout(commandBuffer, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
+                              VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        TransitionImageLayout(commandBuffer, m_depthBufferImage, VK_IMAGE_LAYOUT_UNDEFINED,
+                              VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
 
         VkRect2D renderArea = {};
         renderArea.extent = m_swapchainExtent;
@@ -1159,7 +1144,7 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
         vkCmdBeginRenderingKHR(commandBuffer, &renderingInfo);
         {
             float width = (float)m_swapchainExtent.width;
-            float height= (float)m_swapchainExtent.height;
+            float height = (float)m_swapchainExtent.height;
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
@@ -1176,17 +1161,18 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
             vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
             vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-            float aspectRatio = width/height;
+            float aspectRatio = width / height;
             glm::mat4 projection = glm::perspective(camera.fov, aspectRatio, camera.near, camera.far);
-            if (camera.flipY) 
+            if (camera.flipY)
                 projection[1][1] *= -1;
             glm::mat4 view = glm::lookAt(camera.position, camera.target, camera.up);
 
             GlobalUniforms globalUniforms = {};
-            globalUniforms.viewProjection = projection * view;;
+            globalUniforms.viewProjection = projection * view;
+            ;
             memcpy(m_globalUniformBuffers[frameIndex].data, &globalUniforms, sizeof(globalUniforms));
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 
-                    0, 1, &m_globalDescriptors[frameIndex], 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
+                                    &m_globalDescriptors[frameIndex], 0, nullptr);
 
             for (auto &model : m_models) {
                 VkDeviceSize vertexBufferOffset = 0;
@@ -1194,13 +1180,11 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
                 vkCmdBindIndexBuffer(commandBuffer, model.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
                 RenderNode(commandBuffer, frameIndex, model, model.rootNode);
             }
-
         }
         vkCmdEndRenderingKHR(commandBuffer);
 
-        TransitionImageLayout(
-                commandBuffer, m_swapchainImages[imageIndex], 
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        TransitionImageLayout(commandBuffer, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                              VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
     vkEndCommandBuffer(commandBuffer);
 
@@ -1229,6 +1213,6 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
     return true;
 }
 
-void Renderer::Shutdown() 
+void Renderer::Shutdown()
 {
 }

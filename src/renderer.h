@@ -3,25 +3,25 @@
 #include <volk.h>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
-#include <stdio.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <stdio.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <vulkan/vk_enum_string_helper.h>
 
 #define MAX_FRAMES_IN_FLIGHT 2
-#define ARRAY_COUNT(array) (sizeof(array)/sizeof(array[0]))
-#define VK_CHECK(call)\
-do {\
-    VkResult res = call;\
-    if (res != VK_SUCCESS) {\
-        fprintf(stderr, "ERROR: %s - %s\n", #call, string_VkResult(res));\
-        return false;\
-    }\
-} while (0)
+#define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
+#define VK_CHECK(call)                                                                                                 \
+    do {                                                                                                               \
+        VkResult res = call;                                                                                           \
+        if (res != VK_SUCCESS) {                                                                                       \
+            fprintf(stderr, "ERROR: %s - %s\n", #call, string_VkResult(res));                                          \
+            return false;                                                                                              \
+        }                                                                                                              \
+    } while (0)
 
 static const char *layers[] = {
     "VK_LAYER_KHRONOS_validation",
@@ -51,17 +51,17 @@ struct Vertex
     glm::vec4 weights;
 };
 
-struct Constants 
+struct Constants
 {
     glm::mat4 model;
 };
 
-struct GlobalUniforms 
+struct GlobalUniforms
 {
     glm::mat4 viewProjection;
 };
 
-struct Camera 
+struct Camera
 {
     glm::vec3 position = glm::vec3(0, 0, 4);
     glm::vec3 up = glm::vec3(0, 1, 0);
@@ -80,19 +80,19 @@ struct AllocatedBuffer
     void *data;
 };
 
-struct Primitive 
+struct Primitive
 {
     uint32_t indexOffset;
     uint32_t indexCount;
 };
 
-struct Mesh 
+struct Mesh
 {
     uint32_t primitiveOffset;
     uint32_t primitiveCount;
 };
 
-struct Node 
+struct Node
 {
     glm::vec3 translation = glm::vec3(0);
     glm::vec3 scale = glm::vec3(1);
@@ -108,21 +108,17 @@ struct Node
 
     inline glm::mat4 GetLocalMatrix() const
     {
-        return 
-            glm::translate(glm::mat4(1), translation) *
-            glm::scale(glm::mat4(1), scale) * 
-            glm::mat4_cast(rotation) * 
-            matrix;
+        return glm::translate(glm::mat4(1), translation) * glm::scale(glm::mat4(1), scale) * glm::mat4_cast(rotation) *
+               matrix;
     }
 };
 
-enum InterpolationMethod 
+enum InterpolationMethod
 {
     InterpolationMethod_Linear = 0,
 };
 
-template <typename T>
-struct AnimationSpline
+template <typename T> struct AnimationSpline
 {
     void GetValueAtTime(float time, T &outValue) const;
 
@@ -131,15 +127,14 @@ struct AnimationSpline
     InterpolationMethod method;
 };
 
-template <typename T>
-inline void AnimationSpline<T>::GetValueAtTime(float time, T &outValue) const
+template <typename T> inline void AnimationSpline<T>::GetValueAtTime(float time, T &outValue) const
 {
     assert(method == InterpolationMethod_Linear && "Unhandled interpolation method");
 
     for (uint32_t i = 1; i < values.size(); ++i) {
-        auto v0 = values[i-1];
+        auto v0 = values[i - 1];
         auto v1 = values[i];
-        auto t0 = times[i-1];
+        auto t0 = times[i - 1];
         auto t1 = times[i];
 
         if (t1 > time) {
@@ -152,7 +147,7 @@ inline void AnimationSpline<T>::GetValueAtTime(float time, T &outValue) const
 
 struct AnimationSampler
 {
-    // For the time being assume that animations share a model's lifetime 
+    // For the time being assume that animations share a model's lifetime
     // and therefore this pointer will always be valid.
     Node *node;
 
@@ -163,22 +158,22 @@ struct AnimationSampler
 
 // Since animations work on specific node they cannot be shared between models,
 // so even thougth they create a cyclical dependency it makes sense.
-struct Animation 
+struct Animation
 {
     std::vector<AnimationSampler> samplers;
     float endTime;
 };
 
-struct Skin 
+struct Skin
 {
     std::vector<glm::mat4> inverseBindMatrices; // readonly
-    std::vector<Node *> joints; // readonly
+    std::vector<Node *> joints;                 // readonly
     std::vector<glm::mat4> jointMatrices[MAX_FRAMES_IN_FLIGHT];
     AllocatedBuffer jointMatricesBuffer[MAX_FRAMES_IN_FLIGHT];
     VkDescriptorSet descriptorSet[MAX_FRAMES_IN_FLIGHT];
 };
 
-struct Model 
+struct Model
 {
     void UpdateAnimations(float dt);
     void UpdateTransforms();
@@ -190,35 +185,36 @@ struct Model
     std::vector<Animation> animations;
     std::vector<Skin> skins;
 
-    // TODO: 
+    // TODO:
     //
-    // If I have many instances of a model some of this information will 
+    // If I have many instances of a model some of this information will
     // remain constant (vertex data, etc) some of it however changes at runtime (ie node positions)
     // so there is probobly two seperate things here.
-    
+
     // Dynamic
     Node rootNode;
-    float  animation_t = 0.0f;
+    float animation_t = 0.0f;
     Animation *playingAnimation = nullptr;
     AllocatedBuffer vertexBuffer;
     AllocatedBuffer indexBuffer;
 };
 
-class Renderer 
+class Renderer
 {
-public:
+  public:
     bool Init(GLFWwindow *window);
     bool Render(const Camera &camera, GLFWwindow *window, double dt);
     void Shutdown();
     bool LoadModel(const char *path);
 
-private:
+  private:
     void RenderNode(VkCommandBuffer commandBuffer, uint32_t frameIndex, Model &model, const Node &node);
 
     bool ReadFileBytes(const char *path, std::vector<uint8_t> &outBytes);
     bool CompileShader(const void *bytes, uint32_t size, VkShaderModule &outShader);
 
-    bool AllocateDeviceMemory(VkMemoryRequirements requirements,VkMemoryPropertyFlags propertyFlags, VkDeviceMemory &outMemory);
+    bool AllocateDeviceMemory(VkMemoryRequirements requirements, VkMemoryPropertyFlags propertyFlags,
+                              VkDeviceMemory &outMemory);
     bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, AllocatedBuffer &outBuffer);
     bool CreateImage();
 
@@ -268,7 +264,7 @@ private:
     VkSemaphore m_imageReady[MAX_FRAMES_IN_FLIGHT] = {};
     VkSemaphore m_renderFinished[MAX_FRAMES_IN_FLIGHT] = {};
 
-    VkDescriptorPool m_descriptorPool; 
+    VkDescriptorPool m_descriptorPool;
     VkDescriptorSetLayout m_jointsDescriptorsLayout;
     VkDescriptorSetLayout m_globalDescriptorsLayout;
     AllocatedBuffer m_globalUniformBuffers[MAX_FRAMES_IN_FLIGHT] = {};
@@ -281,4 +277,3 @@ private:
     // TODO: Scene.
     std::vector<Model> m_models;
 };
-

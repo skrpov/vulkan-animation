@@ -1,6 +1,6 @@
 #include "application.h"
 
-static void GlfwKeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+static void GlfwKeyCallback(GLFWwindow *window, int key, int scancode, int action, int mods)
 {
     if (key == GLFW_KEY_W && action == GLFW_PRESS && (mods & GLFW_MOD_SUPER))
         Application::Get().StopRunning();
@@ -11,7 +11,7 @@ static void GlfwErrorCallback(int code, const char *message)
     fprintf(stderr, "GLFW: %s\n", message);
 }
 
-bool Application::Run() 
+bool Application::Run()
 {
     glfwSetErrorCallback(GlfwErrorCallback);
     if (!glfwInit()) {
@@ -33,7 +33,7 @@ bool Application::Run()
         return false;
     }
 
-    double lastTime =-glfwGetTime();
+    double lastTime = -glfwGetTime();
 
     m_running = true;
     while (m_running) {
@@ -49,7 +49,7 @@ bool Application::Run()
         }
 
         char windowTitle[1024] = {};
-        snprintf(windowTitle, sizeof(windowTitle), "%f ms | %f fps", dt, 1/dt);
+        snprintf(windowTitle, sizeof(windowTitle), "%f ms | %f fps", dt, 1 / dt);
         glfwSetWindowTitle(m_window, windowTitle);
     }
 
@@ -59,5 +59,3 @@ bool Application::Run()
     glfwTerminate();
     return true;
 }
-
-
