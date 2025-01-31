@@ -12,7 +12,7 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vk_enum_string_helper.h>
 
-#define MAX_FRAMES_IN_FLIGHT 2
+#define MAX_FRAMES_IN_FLIGHT 3
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
 #define VK_CHECK(call)                                                                                                 \
     do {                                                                                                               \
@@ -65,7 +65,7 @@ struct Camera
 {
     glm::vec3 position = glm::vec3(0, 0, 4);
     glm::vec3 up = glm::vec3(0, 1, 0);
-    glm::vec3 target = glm::vec3(0, 0, 0);
+    glm::vec3 target = glm::vec3(0, 0.7, 0);
     float fov = glm::radians(45.0f);
     float near = 0.1f;
     float far = 100.0f;

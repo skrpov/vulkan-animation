@@ -9,7 +9,7 @@ void main()
 {
     vec3 sunDirection = vec3(1, 1, 1);
     vec3 sunColor = vec3(1);
-    vec3 albedo = vec3(1, 0, 0);
+    vec3 albedo = vec3(1, 1, 1);
 
     vec3 L = normalize(sunDirection);
     vec3 N = normalize(normal);

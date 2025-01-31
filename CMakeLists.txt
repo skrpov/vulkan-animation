@@ -12,9 +12,9 @@ add_subdirectory(./vendor/glm)
 
 add_executable(
     app 
-    renderer.cpp
-    application.cpp
-    main.cpp) 
+    ./src/renderer.cpp
+    ./src/application.cpp
+    ./src/main.cpp) 
 
 target_include_directories( 
     app 
