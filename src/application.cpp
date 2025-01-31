@@ -33,7 +33,7 @@ bool Application::Run()
         return false;
     }
 
-    double lastTime = -glfwGetTime();
+    double lastTime = glfwGetTime();
 
     m_running = true;
     while (m_running) {

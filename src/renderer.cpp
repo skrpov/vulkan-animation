@@ -76,6 +76,7 @@ bool Renderer::ChoosePhysicalDevice()
     }
 
     if (m_physicalDevice == nullptr) {
+        LOG_ERROR("Couldn't find suitable graphics card.\n");
         return false;
     }
 
@@ -327,6 +328,7 @@ bool Renderer::ReadFileBytes(const char *path, std::vector<uint8_t> &outBytes)
             result = false;
         fclose(fp);
     } else {
+        LOG_ERROR("Failed to read file at path %s", path);
         result = false;
     }
 
@@ -1038,7 +1040,8 @@ bool Renderer::Init(GLFWwindow *window)
     }
 #else
 #if 1
-    if (!LoadModel("./assets/CesiumMan.glb")) {
+    if (!LoadModel("./assets/clone_trooper_dancing_clone_wars_style.glb")) {
+        printf("Error loading model\n");
         return false;
     }
 #else
@@ -1051,15 +1054,6 @@ bool Renderer::Init(GLFWwindow *window)
     model.playingAnimation = &model.animations[0];
 #endif
 
-    const Vertex vertices[] = {
-        {glm::vec3(-0.5f, -0.5f, 0.0f)},
-        {glm::vec3(0.5f, -0.5f, 0.0f)},
-        {glm::vec3(0.5f, 0.5f, 0.0f)},
-    };
-    if (!CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, sizeof(vertices), m_vertexBuffer)) {
-        return false;
-    }
-    memcpy(m_vertexBuffer.data, vertices, sizeof(vertices));
     return true;
 }
 
