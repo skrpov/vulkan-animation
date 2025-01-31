@@ -12,13 +12,15 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vk_enum_string_helper.h>
 
+#define LOG_ERROR(message, ...) fprintf(stderr, "ERROR: " message "\n" ,##__VA_ARGS__)
+
 #define MAX_FRAMES_IN_FLIGHT 3
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
 #define VK_CHECK(call)                                                                                                 \
     do {                                                                                                               \
         VkResult res = call;                                                                                           \
         if (res != VK_SUCCESS) {                                                                                       \
-            fprintf(stderr, "ERROR: %s - %s\n", #call, string_VkResult(res));                                          \
+            LOG_ERROR("%s - %s", #call, string_VkResult(res)); \
             return false;                                                                                              \
         }                                                                                                              \
     } while (0)
@@ -126,6 +128,24 @@ template <typename T> struct AnimationSpline
     std::vector<float> times;
     InterpolationMethod method;
 };
+
+template <> inline void AnimationSpline<glm::quat>::GetValueAtTime(float time, glm::quat &outValue) const
+{
+    assert(method == InterpolationMethod_Linear && "Unhandled interpolation method");
+
+    for (uint32_t i = 1; i < values.size(); ++i) {
+        auto v0 = values[i - 1];
+        auto v1 = values[i];
+        auto t0 = times[i - 1];
+        auto t1 = times[i];
+
+        if (t1 > time) {
+            float t = (time - t0) / (t1 - t0);
+            outValue = glm::normalize(glm::slerp(v0, v1, t));
+            break;
+        }
+    }
+}
 
 template <typename T> inline void AnimationSpline<T>::GetValueAtTime(float time, T &outValue) const
 {
@@ -270,7 +290,6 @@ class Renderer
     AllocatedBuffer m_globalUniformBuffers[MAX_FRAMES_IN_FLIGHT] = {};
     VkDescriptorSet m_globalDescriptors[MAX_FRAMES_IN_FLIGHT] = {};
 
-    AllocatedBuffer m_vertexBuffer = {};
     VkPipelineLayout m_pipelineLayout = nullptr;
     VkPipeline m_pipeline = nullptr;
 
