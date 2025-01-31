@@ -12,6 +12,8 @@ add_subdirectory(./vendor/glm)
 
 add_executable(
     app 
+    ./src/device.cpp
+    ./src/swapchain.cpp
     ./src/renderer.cpp
     ./src/application.cpp
     ./src/main.cpp) 

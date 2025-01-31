@@ -29,159 +29,10 @@ bool Renderer::CreateSurface(GLFWwindow *window)
     return true;
 }
 
-bool Renderer::ChoosePhysicalDevice()
-{
-    std::vector<VkPhysicalDevice> physicalDevices;
-    uint32_t physicalDeviceCount = 0;
-    vkEnumeratePhysicalDevices(m_instance, &physicalDeviceCount, nullptr);
-    physicalDevices.resize(physicalDeviceCount);
-    vkEnumeratePhysicalDevices(m_instance, &physicalDeviceCount, &physicalDevices[0]);
-
-    for (auto physicalDevice : physicalDevices) {
-        uint32_t queueFamilyCount = 0;
-        std::vector<VkQueueFamilyProperties> queueFamilyProperties;
-        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
-        queueFamilyProperties.resize(queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, &queueFamilyProperties[0]);
-
-        uint32_t graphicsFamilyIndex = UINT32_MAX;
-        uint32_t presentFamilyIndex = UINT32_MAX;
-        for (uint32_t queueFamilyIndex = 0; queueFamilyIndex < queueFamilyCount; ++queueFamilyIndex) {
-            VkBool32 presentSupport;
-            vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, queueFamilyIndex, m_surface, &presentSupport);
-            if (presentSupport) {
-                presentFamilyIndex = queueFamilyIndex;
-            }
-
-            if (queueFamilyProperties[queueFamilyIndex].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                graphicsFamilyIndex = queueFamilyIndex;
-            }
-        }
-
-        if (graphicsFamilyIndex != UINT32_MAX && presentFamilyIndex != UINT32_MAX) {
-
-            m_graphicsFamilyIndex = graphicsFamilyIndex;
-            m_presentFamilyIndex = presentFamilyIndex;
-            m_physicalDevice = physicalDevice;
-            vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &m_memoryProperties);
-
-            VkPhysicalDeviceProperties properties = {};
-            vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-            if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-                // If found a integrated gpu that is supported, keep it unless there is a discrete one
-                // found later.
-                break;
-            }
-        }
-    }
-
-    if (m_physicalDevice == nullptr) {
-        LOG_ERROR("Couldn't find suitable graphics card.\n");
-        return false;
-    }
-
-    return true;
-}
-
-bool Renderer::CreateDevice()
-{
-    const float queuePriority = 1.0f;
-    const uint32_t uniqueFamilyIndexCount = m_graphicsFamilyIndex == m_presentFamilyIndex ? 1 : 2;
-    const uint32_t uniqueFamilyIndices[] = {m_graphicsFamilyIndex, m_presentFamilyIndex};
-    VkDeviceQueueCreateInfo queueInfos[2] = {};
-    for (uint32_t i = 0; i < uniqueFamilyIndexCount; ++i) {
-        queueInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueInfos[i].queueFamilyIndex = uniqueFamilyIndices[i];
-        queueInfos[i].queueCount = 1;
-        queueInfos[i].pQueuePriorities = &queuePriority;
-    }
-
-    VkPhysicalDeviceDynamicRenderingFeatures dynamicRendering = {};
-    dynamicRendering.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
-    dynamicRendering.dynamicRendering = VK_TRUE;
-
-    VkPhysicalDeviceSynchronization2Features sync2 = {};
-    sync2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
-    sync2.pNext = &dynamicRendering;
-    sync2.synchronization2 = VK_TRUE;
-
-    VkPhysicalDeviceFeatures enabledFeatures = {};
-
-    VkDeviceCreateInfo deviceCI = {};
-    deviceCI.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCI.pNext = &sync2;
-    deviceCI.queueCreateInfoCount = uniqueFamilyIndexCount;
-    deviceCI.pQueueCreateInfos = queueInfos;
-    deviceCI.enabledLayerCount = ARRAY_COUNT(layers);
-    deviceCI.ppEnabledLayerNames = layers;
-    deviceCI.enabledExtensionCount = ARRAY_COUNT(deviceExtensions);
-    deviceCI.ppEnabledExtensionNames = deviceExtensions;
-    deviceCI.pEnabledFeatures = &enabledFeatures;
-    VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCI, nullptr, &m_device));
-
-    volkLoadDevice(m_device);
-
-    vkGetDeviceQueue(m_device, m_graphicsFamilyIndex, 0, &m_graphicsQueue);
-    vkGetDeviceQueue(m_device, m_presentFamilyIndex, 0, &m_presentQueue);
-
-    return true;
-}
-
-bool Renderer::CreateSwapchain(GLFWwindow *window)
-{
-    // Specifically the families which access the swapchain. So potentially different from the device.
-    const uint32_t uniqueFamilyIndexCount = m_graphicsFamilyIndex == m_presentFamilyIndex ? 1 : 2;
-    const uint32_t uniqueFamilyIndices[] = {m_graphicsFamilyIndex, m_presentFamilyIndex};
-
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-    m_swapchainExtent.width = (uint32_t)width;
-    m_swapchainExtent.height = (uint32_t)height;
-    m_swapchainFormat = VK_FORMAT_B8G8R8A8_SRGB;
-
-    VkSwapchainCreateInfoKHR swapchainCI = {};
-    swapchainCI.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swapchainCI.surface = m_surface;
-    swapchainCI.minImageCount = 2;
-    swapchainCI.imageFormat = m_swapchainFormat;
-    swapchainCI.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-    swapchainCI.imageExtent = m_swapchainExtent;
-    swapchainCI.imageArrayLayers = 1;
-    swapchainCI.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    swapchainCI.imageSharingMode = uniqueFamilyIndexCount == 1 ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT;
-    swapchainCI.queueFamilyIndexCount = uniqueFamilyIndexCount;
-    swapchainCI.pQueueFamilyIndices = uniqueFamilyIndices;
-    swapchainCI.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-    swapchainCI.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    swapchainCI.presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    swapchainCI.clipped = VK_TRUE;
-    swapchainCI.oldSwapchain = nullptr;
-    VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCI, nullptr, &m_swapchain));
-
-    vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_swapchainImageCount, nullptr);
-    m_swapchainImages.resize(m_swapchainImageCount);
-    vkGetSwapchainImagesKHR(m_device, m_swapchain, &m_swapchainImageCount, &m_swapchainImages[0]);
-
-    m_swapchainImageViews.resize(m_swapchainImageCount);
-    for (uint32_t i = 0; i < m_swapchainImageCount; ++i) {
-        VkImageViewCreateInfo imageViewCI = {};
-        imageViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewCI.image = m_swapchainImages[i];
-        imageViewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        imageViewCI.format = m_swapchainFormat;
-        imageViewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        imageViewCI.subresourceRange.baseMipLevel = 0;
-        imageViewCI.subresourceRange.levelCount = 1;
-        imageViewCI.subresourceRange.baseArrayLayer = 0;
-        imageViewCI.subresourceRange.layerCount = 1;
-        VK_CHECK(vkCreateImageView(m_device, &imageViewCI, nullptr, &m_swapchainImageViews[i]));
-    }
-
-    return true;
-}
-
 bool Renderer::CreateDescriptorSetLayouts()
 {
+    VkDevice device = m_device.GetDevice();
+
     const VkDescriptorPoolSize poolSizes[] = {
         // type; descriptorCount;
         {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 4096},
@@ -193,7 +44,7 @@ bool Renderer::CreateDescriptorSetLayouts()
     descriptorPoolCI.maxSets = 4096;
     descriptorPoolCI.poolSizeCount = ARRAY_COUNT(poolSizes);
     descriptorPoolCI.pPoolSizes = poolSizes;
-    VK_CHECK(vkCreateDescriptorPool(m_device, &descriptorPoolCI, nullptr, &m_descriptorPool));
+    VK_CHECK(vkCreateDescriptorPool(device, &descriptorPoolCI, nullptr, &m_descriptorPool));
 
     { // Global descriptors
 
@@ -206,7 +57,7 @@ bool Renderer::CreateDescriptorSetLayouts()
         layoutCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutCI.bindingCount = ARRAY_COUNT(bindings);
         layoutCI.pBindings = bindings;
-        VK_CHECK(vkCreateDescriptorSetLayout(m_device, &layoutCI, nullptr, &m_globalDescriptorsLayout));
+        VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutCI, nullptr, &m_globalDescriptorsLayout));
     }
 
     { // Joints descriptors
@@ -219,7 +70,7 @@ bool Renderer::CreateDescriptorSetLayouts()
         layoutCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         layoutCI.bindingCount = ARRAY_COUNT(bindings);
         layoutCI.pBindings = bindings;
-        VK_CHECK(vkCreateDescriptorSetLayout(m_device, &layoutCI, nullptr, &m_jointsDescriptorsLayout));
+        VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutCI, nullptr, &m_jointsDescriptorsLayout));
     }
 
     return true;
@@ -227,19 +78,16 @@ bool Renderer::CreateDescriptorSetLayouts()
 
 bool Renderer::CreateFrameData()
 {
-    VkCommandPoolCreateInfo commandPoolCI = {};
-    commandPoolCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    commandPoolCI.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    commandPoolCI.queueFamilyIndex = m_graphicsFamilyIndex;
-    VK_CHECK(vkCreateCommandPool(m_device, &commandPoolCI, nullptr, &m_commandPool));
-
+    VkDevice device = m_device.GetDevice();
+    VkCommandPool commandPool = m_device.GetCommandPool();
+    
     {
         VkCommandBufferAllocateInfo allocateInfo = {};
         allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocateInfo.commandPool = m_commandPool;
+        allocateInfo.commandPool = commandPool;
         allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         allocateInfo.commandBufferCount = MAX_FRAMES_IN_FLIGHT;
-        VK_CHECK(vkAllocateCommandBuffers(m_device, &allocateInfo, m_commandBuffers));
+        VK_CHECK(vkAllocateCommandBuffers(device, &allocateInfo, m_commandBuffers));
     }
 
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
@@ -250,9 +98,9 @@ bool Renderer::CreateFrameData()
         VkSemaphoreCreateInfo semaphoreCI = {};
         semaphoreCI.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-        VK_CHECK(vkCreateFence(m_device, &fenceCI, nullptr, &m_commandBufferReady[i]));
-        VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCI, nullptr, &m_imageReady[i]));
-        VK_CHECK(vkCreateSemaphore(m_device, &semaphoreCI, nullptr, &m_renderFinished[i]));
+        VK_CHECK(vkCreateFence(device, &fenceCI, nullptr, &m_commandBufferReady[i]));
+        VK_CHECK(vkCreateSemaphore(device, &semaphoreCI, nullptr, &m_imageReady[i]));
+        VK_CHECK(vkCreateSemaphore(device, &semaphoreCI, nullptr, &m_renderFinished[i]));
     }
 
     {
@@ -268,10 +116,14 @@ bool Renderer::CreateFrameData()
         allocateInfo.descriptorPool = m_descriptorPool;
         allocateInfo.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
         allocateInfo.pSetLayouts = &layouts[0];
-        VK_CHECK(vkAllocateDescriptorSets(m_device, &allocateInfo, &m_globalDescriptors[0]));
+        VK_CHECK(vkAllocateDescriptorSets(device, &allocateInfo, &m_globalDescriptors[0]));
 
         for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-            if (!CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(GlobalUniforms), m_globalUniformBuffers[i])) {
+            BufferCreateInfo bufferInfo = {};
+            bufferInfo.size = sizeof(GlobalUniforms);
+            bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+            bufferInfo.hostVisible = true;
+            if (!m_device.CreateBuffer(bufferInfo, m_globalUniformBuffers[i])) {
                 return false;
             }
 
@@ -288,7 +140,7 @@ bool Renderer::CreateFrameData()
             bufferWrites[i].pBufferInfo = &bufferInfos[i];
         }
 
-        vkUpdateDescriptorSets(m_device, MAX_FRAMES_IN_FLIGHT, bufferWrites, 0, nullptr);
+        vkUpdateDescriptorSets(device, MAX_FRAMES_IN_FLIGHT, bufferWrites, 0, nullptr);
     }
 
     return true;
@@ -296,6 +148,8 @@ bool Renderer::CreateFrameData()
 
 bool Renderer::CreatePipelineLayouts()
 {
+    VkDevice device = m_device.GetDevice();
+
     VkPushConstantRange range = {};
     range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     range.offset = 0;
@@ -309,7 +163,7 @@ bool Renderer::CreatePipelineLayouts()
     pipelineLayoutCI.pSetLayouts = layouts;
     pipelineLayoutCI.pushConstantRangeCount = 1;
     pipelineLayoutCI.pPushConstantRanges = &range;
-    VK_CHECK(vkCreatePipelineLayout(m_device, &pipelineLayoutCI, nullptr, &m_pipelineLayout));
+    VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &m_pipelineLayout));
 
     return true;
 }
@@ -337,16 +191,19 @@ bool Renderer::ReadFileBytes(const char *path, std::vector<uint8_t> &outBytes)
 
 bool Renderer::CompileShader(const void *bytes, uint32_t size, VkShaderModule &outShader)
 {
+    VkDevice device = m_device.GetDevice();
+
     VkShaderModuleCreateInfo shaderCI = {};
     shaderCI.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     shaderCI.codeSize = size;
     shaderCI.pCode = (const uint32_t *)bytes;
-    VK_CHECK(vkCreateShaderModule(m_device, &shaderCI, nullptr, &outShader));
+    VK_CHECK(vkCreateShaderModule(device, &shaderCI, nullptr, &outShader));
     return true;
 }
 
 bool Renderer::CreateGraphicsPipelines()
 {
+    VkDevice device = m_device.GetDevice();
     VkShaderModule vertexShader = nullptr;
     VkShaderModule fragmentShader = nullptr;
     std::vector<uint8_t> bytes;
@@ -462,10 +319,12 @@ bool Renderer::CreateGraphicsPipelines()
     dynamicCI.dynamicStateCount = sizeof(dynamicStates) / sizeof(dynamicStates[0]);
     dynamicCI.pDynamicStates = dynamicStates;
 
+    VkFormat swapchainFormat = m_swapchain.GetFormat();
+
     VkPipelineRenderingCreateInfo renderingCI = {};
     renderingCI.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     renderingCI.colorAttachmentCount = 1;
-    renderingCI.pColorAttachmentFormats = &m_swapchainFormat;
+    renderingCI.pColorAttachmentFormats = &swapchainFormat;
     renderingCI.depthAttachmentFormat = m_depthBufferFormat;
     // renderingCI.stencilAttachmentFormat;
 
@@ -485,67 +344,47 @@ bool Renderer::CreateGraphicsPipelines()
     pipelineCI.pDynamicState = &dynamicCI;
     pipelineCI.layout = m_pipelineLayout;
     pipelineCI.renderPass = nullptr;
-    VK_CHECK(vkCreateGraphicsPipelines(m_device, nullptr, 1, &pipelineCI, nullptr, &m_pipeline));
+    VK_CHECK(vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineCI, nullptr, &m_pipeline));
 
-    vkDestroyShaderModule(m_device, vertexShader, nullptr);
-    vkDestroyShaderModule(m_device, fragmentShader, nullptr);
-
-    return true;
-}
-
-bool Renderer::AllocateDeviceMemory(VkMemoryRequirements requirements, VkMemoryPropertyFlags propertyFlags,
-                                    VkDeviceMemory &outMemory)
-{
-    outMemory = nullptr;
-    for (uint32_t i = 0; i < m_memoryProperties.memoryTypeCount; ++i) {
-        uint32_t memoryTypeBits = (1 << i);
-        if ((requirements.memoryTypeBits & memoryTypeBits) == memoryTypeBits) {
-            if ((m_memoryProperties.memoryTypes[i].propertyFlags & propertyFlags) == propertyFlags) {
-                VkMemoryAllocateInfo allocateInfo = {};
-                allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-                allocateInfo.allocationSize = requirements.size;
-                allocateInfo.memoryTypeIndex = i;
-                VK_CHECK(vkAllocateMemory(m_device, &allocateInfo, nullptr, &outMemory));
-                break;
-            }
-        }
-    }
-    if (outMemory == nullptr) {
-        return false;
-    }
+    vkDestroyShaderModule(device, vertexShader, nullptr);
+    vkDestroyShaderModule(device, fragmentShader, nullptr);
 
     return true;
 }
 
 void Renderer::DestroyDepthBuffer()
 {
-    vkDestroyImageView(m_device, m_depthBufferImageView, nullptr);
-    vkFreeMemory(m_device, m_depthBufferMemory, nullptr);
-    vkDestroyImage(m_device, m_depthBufferImage, nullptr);
+    VkDevice device = m_device.GetDevice();
+    vkDestroyImageView(device, m_depthBufferImageView, nullptr);
+    vkFreeMemory(device, m_depthBufferMemory, nullptr);
+    vkDestroyImage(device, m_depthBufferImage, nullptr);
 }
 
 bool Renderer::CreateDepthBuffer()
 {
+    VkDevice device = m_device.GetDevice();
+    VkExtent2D swapchainExtent = m_swapchain.GetExtent();
     m_depthBufferFormat = VK_FORMAT_D32_SFLOAT;
+
 
     VkImageCreateInfo imageCI = {};
     imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageCI.imageType = VK_IMAGE_TYPE_2D;
     imageCI.format = m_depthBufferFormat;
-    imageCI.extent.width = m_swapchainExtent.width;
-    imageCI.extent.height = m_swapchainExtent.height;
+    imageCI.extent.width = swapchainExtent.width;
+    imageCI.extent.height = swapchainExtent.height;
     imageCI.extent.depth = 1;
     imageCI.mipLevels = 1;
     imageCI.arrayLayers = 1;
     imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
     imageCI.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    VK_CHECK(vkCreateImage(m_device, &imageCI, nullptr, &m_depthBufferImage));
+    VK_CHECK(vkCreateImage(device, &imageCI, nullptr, &m_depthBufferImage));
 
     VkMemoryRequirements requirements = {};
-    vkGetImageMemoryRequirements(m_device, m_depthBufferImage, &requirements);
+    vkGetImageMemoryRequirements(device, m_depthBufferImage, &requirements);
     VkMemoryPropertyFlags propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    AllocateDeviceMemory(requirements, propertyFlags, m_depthBufferMemory);
-    VK_CHECK(vkBindImageMemory(m_device, m_depthBufferImage, m_depthBufferMemory, 0));
+    m_device.AllocateDeviceMemory(requirements, propertyFlags, m_depthBufferMemory);
+    VK_CHECK(vkBindImageMemory(device, m_depthBufferImage, m_depthBufferMemory, 0));
 
     VkImageViewCreateInfo imageViewCI = {};
     imageViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -557,35 +396,17 @@ bool Renderer::CreateDepthBuffer()
     imageViewCI.subresourceRange.levelCount = 1;
     imageViewCI.subresourceRange.baseArrayLayer = 0;
     imageViewCI.subresourceRange.layerCount = 1;
-    VK_CHECK(vkCreateImageView(m_device, &imageViewCI, nullptr, &m_depthBufferImageView));
-
-    return true;
-}
-
-bool Renderer::CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, AllocatedBuffer &outBuffer)
-{
-    VkBufferCreateInfo bufferCI = {};
-    bufferCI.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCI.size = size;
-    bufferCI.usage = usage;
-    VK_CHECK(vkCreateBuffer(m_device, &bufferCI, nullptr, &outBuffer.buffer));
-
-    VkMemoryRequirements requirements = {};
-    vkGetBufferMemoryRequirements(m_device, outBuffer.buffer, &requirements);
-    VkMemoryPropertyFlags propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    AllocateDeviceMemory(requirements, propertyFlags, outBuffer.memory);
-
-    VK_CHECK(vkBindBufferMemory(m_device, outBuffer.buffer, outBuffer.memory, 0));
-    outBuffer.size = size;
-    VK_CHECK(vkMapMemory(m_device, outBuffer.memory, 0, outBuffer.size, 0, &outBuffer.data));
+    VK_CHECK(vkCreateImageView(device, &imageViewCI, nullptr, &m_depthBufferImageView));
 
     return true;
 }
 
 bool Renderer::InitVulkan(GLFWwindow *window)
 {
-    return CreateInstance() && CreateSurface(window) && ChoosePhysicalDevice() && CreateDevice() &&
-           CreateSwapchain(window) && CreateDepthBuffer() && CreateDescriptorSetLayouts() && CreateFrameData() &&
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+    return CreateInstance() && CreateSurface(window) && m_device.Init(m_instance, m_surface) &&
+           m_swapchain.Init(&m_device, m_surface, (uint32_t)width, (uint32_t)height) && CreateDepthBuffer() && CreateDescriptorSetLayouts() && CreateFrameData() &&
            CreatePipelineLayouts() && CreateGraphicsPipelines();
 }
 
@@ -748,6 +569,7 @@ static void LoadAnimations(const cgltf_data *gltf, Model &model)
 
 bool Renderer::LoadModel(const char *path)
 {
+    VkDevice device = m_device.GetDevice();
     cgltf_options options = {};
     cgltf_data *gltf = nullptr;
 
@@ -861,14 +683,23 @@ bool Renderer::LoadModel(const char *path)
 
             const VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
             const VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
-            if (!CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBufferSize, model.vertexBuffer)) {
-                return false;
+            
+            {
+                BufferCreateInfo bufferInfo = {};
+                bufferInfo.size = vertexBufferSize;
+                bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+                if (!m_device.CreateBuffer(bufferInfo, model.vertexBuffer) || !m_device.SetBufferData(model.vertexBuffer, 0, vertexBufferSize, vertices.data())) {
+                    return false;
+                }
             }
-            memcpy(model.vertexBuffer.data, &vertices[0], vertexBufferSize);
-            if (!CreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize, model.indexBuffer)) {
-                return false;
+            {
+                BufferCreateInfo bufferInfo = {};
+                bufferInfo.size = vertexBufferSize;
+                bufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+                if (!m_device.CreateBuffer(bufferInfo, model.indexBuffer) || !m_device.SetBufferData(model.indexBuffer, 0, indexBufferSize, indices.data())) {
+                    return false;
+                }
             }
-            memcpy(model.indexBuffer.data, &indices[0], indexBufferSize);
 
             { // Load skins
                 for (const auto *skin = gltf->skins; skin != gltf->skins + gltf->skins_count; ++skin) {
@@ -896,14 +727,19 @@ bool Renderer::LoadModel(const char *path)
                         allocateInfo.descriptorSetCount = MAX_FRAMES_IN_FLIGHT;
                         allocateInfo.pSetLayouts = &layouts[0];
 
-                        VK_CHECK(vkAllocateDescriptorSets(m_device, &allocateInfo, &outSkin.descriptorSet[0]));
+                        VK_CHECK(vkAllocateDescriptorSets(device, &allocateInfo, &outSkin.descriptorSet[0]));
 
                         for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
                             outSkin.jointMatrices[i].resize(jointsCount);
 
-                            if (!CreateBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, jointsBufferSize,
-                                              outSkin.jointMatricesBuffer[i])) {
-                                return false;
+                            {
+                                BufferCreateInfo bufferInfo = {};
+                                bufferInfo.size = jointsBufferSize;
+                                bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+                                bufferInfo.hostVisible = true;
+                                if (!m_device.CreateBuffer(bufferInfo, outSkin.jointMatricesBuffer[i])) {
+                                    return false;
+                                }
                             }
 
                             VkDescriptorBufferInfo bufferInfo = {};
@@ -920,7 +756,7 @@ bool Renderer::LoadModel(const char *path)
                             writeInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                             writeInfo.pBufferInfo = &bufferInfo;
 
-                            vkUpdateDescriptorSets(m_device, 1, &writeInfo, 0, nullptr);
+                            vkUpdateDescriptorSets(device, 1, &writeInfo, 0, nullptr);
                         }
                     }
 
@@ -1001,7 +837,7 @@ void Renderer::RenderNode(VkCommandBuffer commandBuffer, uint32_t frameIndex, Mo
             jointMatrices[i] = joints[i]->worldMatrix * inverseBindMatrices[i];
             jointMatrices[i] = rootNodeInverse * jointMatrices[i];
         }
-        memcpy(jointMatricesBuffer.data, &jointMatrices[0], jointMatrices.size() * sizeof(jointMatrices[0]));
+        m_device.SetBufferData(jointMatricesBuffer, 0, jointMatrices.size()*sizeof(jointMatrices[0]), jointMatrices.data());
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 1, 1, &descriptorSet,
                                 0, nullptr);
@@ -1054,39 +890,48 @@ bool Renderer::Init(GLFWwindow *window)
     model.playingAnimation = &model.animations[0];
 #endif
 
+    m_isInitilized = true;
     return true;
-}
-
-void Renderer::DestroySwapchain()
-{
-    for (auto imageView : m_swapchainImageViews)
-        vkDestroyImageView(m_device, imageView, nullptr);
-    vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
 }
 
 bool Renderer::HandleResize(GLFWwindow *window)
 {
-    VK_CHECK(vkDeviceWaitIdle(m_device));
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+
+    VkDevice device = m_device.GetDevice();
+    VK_CHECK(vkDeviceWaitIdle(device));
     DestroyDepthBuffer();
-    DestroySwapchain();
-    if (!CreateSwapchain(window) || !CreateDepthBuffer())
+    m_swapchain.Shutdown();
+    if (!m_swapchain.Init(&m_device, m_surface, (uint32_t)width, (uint32_t)height) || !CreateDepthBuffer()) {
         return false;
+    }
     return true;
 }
 
 bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
 {
+    if (!m_device.WaitForTransfers()) {
+        return false;
+    }
+
     if (!HandleResize(window)) {
         return false;
     }
 
+    VkDevice device = m_device.GetDevice();
+    VkSwapchainKHR swapchain = m_swapchain.GetSwapchain();
+
     const uint32_t frameIndex = m_nextFrameIndex;
     m_nextFrameIndex = (m_nextFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
-    VK_CHECK(vkWaitForFences(m_device, 1, &m_commandBufferReady[frameIndex], VK_TRUE, ~0ull));
-    VK_CHECK(vkResetFences(m_device, 1, &m_commandBufferReady[frameIndex]));
+    VK_CHECK(vkWaitForFences(device, 1, &m_commandBufferReady[frameIndex], VK_TRUE, ~0ull));
+    VK_CHECK(vkResetFences(device, 1, &m_commandBufferReady[frameIndex]));
 
     uint32_t imageIndex = ~0u;
-    VK_CHECK(vkAcquireNextImageKHR(m_device, m_swapchain, ~0ull, m_imageReady[frameIndex], nullptr, &imageIndex));
+    VK_CHECK(vkAcquireNextImageKHR(device, swapchain, ~0ull, m_imageReady[frameIndex], nullptr, &imageIndex));
+
+    VkImage swapchainImage = m_swapchain.GetImage(imageIndex);
+    VkImageView swapchainImageView = m_swapchain.GetImageView(imageIndex);
 
     for (auto &model : m_models) {
         model.UpdateAnimations((float)dt);
@@ -1100,17 +945,17 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
     vkBeginCommandBuffer(commandBuffer, &beginInfo);
     {
 
-        TransitionImageLayout(commandBuffer, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED,
+        TransitionImageLayout(commandBuffer, swapchainImage, VK_IMAGE_LAYOUT_UNDEFINED,
                               VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         TransitionImageLayout(commandBuffer, m_depthBufferImage, VK_IMAGE_LAYOUT_UNDEFINED,
                               VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
 
         VkRect2D renderArea = {};
-        renderArea.extent = m_swapchainExtent;
+        renderArea.extent = m_swapchain.GetExtent();
 
         VkRenderingAttachmentInfo colorAttachment = {};
         colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        colorAttachment.imageView = m_swapchainImageViews[imageIndex];
+        colorAttachment.imageView = swapchainImageView;
         colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1137,13 +982,14 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
 
         vkCmdBeginRenderingKHR(commandBuffer, &renderingInfo);
         {
-            float width = (float)m_swapchainExtent.width;
-            float height = (float)m_swapchainExtent.height;
+            VkExtent2D swapchainExtent = m_swapchain.GetExtent();
+            float width = (float)swapchainExtent.width;
+            float height = (float)swapchainExtent.height;
 
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
             VkRect2D scissor = {};
-            scissor.extent = m_swapchainExtent;
+            scissor.extent = swapchainExtent;
             VkViewport viewport = {};
             viewport.x = 0.0f;
             viewport.y = 0.0f;
@@ -1163,8 +1009,7 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
 
             GlobalUniforms globalUniforms = {};
             globalUniforms.viewProjection = projection * view;
-            ;
-            memcpy(m_globalUniformBuffers[frameIndex].data, &globalUniforms, sizeof(globalUniforms));
+            m_device.SetBufferData(m_globalUniformBuffers[frameIndex], 0, sizeof(globalUniforms), &globalUniforms);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
                                     &m_globalDescriptors[frameIndex], 0, nullptr);
 
@@ -1177,7 +1022,7 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
         }
         vkCmdEndRenderingKHR(commandBuffer);
 
-        TransitionImageLayout(commandBuffer, m_swapchainImages[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        TransitionImageLayout(commandBuffer, swapchainImage, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                               VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
     vkEndCommandBuffer(commandBuffer);
@@ -1193,20 +1038,28 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
     submitInfo.pCommandBuffers = &commandBuffer;
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &m_renderFinished[frameIndex];
-    VK_CHECK(vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_commandBufferReady[frameIndex]));
+    VK_CHECK(vkQueueSubmit(m_device.GetGraphicsQueue(), 1, &submitInfo, m_commandBufferReady[frameIndex]));
 
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &m_renderFinished[frameIndex];
     presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &m_swapchain;
+    presentInfo.pSwapchains = &swapchain;
     presentInfo.pImageIndices = &imageIndex;
-    VK_CHECK(vkQueuePresentKHR(m_presentQueue, &presentInfo));
+    VK_CHECK(vkQueuePresentKHR(m_device.GetPresentQueue(), &presentInfo));
 
     return true;
 }
 
 void Renderer::Shutdown()
 {
+    if (!m_isInitilized) {
+        return;
+    }
+    m_isInitilized = false;
+
+    vkDeviceWaitIdle(m_device.GetDevice());
+    m_swapchain.Shutdown();
+    m_device.Shutdown();
 }

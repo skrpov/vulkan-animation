@@ -1,48 +1,8 @@
 #pragma once
 
-#include <volk.h>
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <stdio.h>
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-#include <vulkan/vk_enum_string_helper.h>
-
-#define LOG_ERROR(message, ...) fprintf(stderr, "ERROR: " message "\n" ,##__VA_ARGS__)
-
-#define MAX_FRAMES_IN_FLIGHT 3
-#define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
-#define VK_CHECK(call)                                                                                                 \
-    do {                                                                                                               \
-        VkResult res = call;                                                                                           \
-        if (res != VK_SUCCESS) {                                                                                       \
-            LOG_ERROR("%s - %s", #call, string_VkResult(res)); \
-            return false;                                                                                              \
-        }                                                                                                              \
-    } while (0)
-
-static const char *layers[] = {
-    "VK_LAYER_KHRONOS_validation",
-};
-
-static const char *instanceExtensions[] = {
-    VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
-    "VK_KHR_portability_enumeration",
-    "VK_EXT_debug_utils",
-    "VK_EXT_metal_surface",
-    "VK_KHR_surface",
-};
-
-static const char *deviceExtensions[] = {
-    VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-    "VK_KHR_portability_subset",
-    "VK_KHR_swapchain",
-    VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
-};
+#include "vulkan.h"
+#include "device.h"
+#include "swapchain.h"
 
 struct Vertex
 {
@@ -72,14 +32,6 @@ struct Camera
     float near = 0.1f;
     float far = 100.0f;
     bool flipY = true;
-};
-
-struct AllocatedBuffer
-{
-    VkBuffer buffer;
-    VkDeviceMemory memory;
-    VkDeviceSize size;
-    void *data;
 };
 
 struct Primitive
@@ -233,19 +185,12 @@ class Renderer
     bool ReadFileBytes(const char *path, std::vector<uint8_t> &outBytes);
     bool CompileShader(const void *bytes, uint32_t size, VkShaderModule &outShader);
 
-    bool AllocateDeviceMemory(VkMemoryRequirements requirements, VkMemoryPropertyFlags propertyFlags,
-                              VkDeviceMemory &outMemory);
-    bool CreateBuffer(VkBufferUsageFlags usage, VkDeviceSize size, AllocatedBuffer &outBuffer);
-    bool CreateImage();
-
     bool CreateInstance();
     bool CreateSurface(GLFWwindow *window);
     bool ChoosePhysicalDevice();
     bool CreateDevice();
-    bool CreateSwapchain(GLFWwindow *window);
     bool CreateDepthBuffer();
     void DestroyDepthBuffer();
-    void DestroySwapchain();
     bool CreateDescriptorSetLayouts();
     bool CreateFrameData();
     bool CreateDescriptorSets();
@@ -255,29 +200,18 @@ class Renderer
 
     bool HandleResize(GLFWwindow *window);
 
+    bool m_isInitilized = false;
+
     VkInstance m_instance = nullptr;
     VkSurfaceKHR m_surface = nullptr;
-    VkPhysicalDevice m_physicalDevice = nullptr;
-    uint32_t m_graphicsFamilyIndex = UINT32_MAX;
-    uint32_t m_presentFamilyIndex = UINT32_MAX;
-    VkPhysicalDeviceMemoryProperties m_memoryProperties;
-    VkDevice m_device = nullptr;
-    VkQueue m_graphicsQueue = nullptr;
-    VkQueue m_presentQueue = nullptr;
-
-    uint32_t m_swapchainImageCount = 0;
-    VkSwapchainKHR m_swapchain = nullptr;
-    std::vector<VkImage> m_swapchainImages;
-    std::vector<VkImageView> m_swapchainImageViews;
-    VkFormat m_swapchainFormat;
-    VkExtent2D m_swapchainExtent;
+    VulkanDevice m_device;
+    VulkanSwapchain m_swapchain;
 
     VkImage m_depthBufferImage;
     VkImageView m_depthBufferImageView;
     VkFormat m_depthBufferFormat;
     VkDeviceMemory m_depthBufferMemory;
 
-    VkCommandPool m_commandPool = nullptr;
     uint32_t m_nextFrameIndex = 0;
     VkFence m_commandBufferReady[MAX_FRAMES_IN_FLIGHT] = {};
     VkCommandBuffer m_commandBuffers[MAX_FRAMES_IN_FLIGHT] = {};
@@ -289,6 +223,11 @@ class Renderer
     VkDescriptorSetLayout m_globalDescriptorsLayout;
     AllocatedBuffer m_globalUniformBuffers[MAX_FRAMES_IN_FLIGHT] = {};
     VkDescriptorSet m_globalDescriptors[MAX_FRAMES_IN_FLIGHT] = {};
+
+    // Transfer system
+    std::vector<AllocatedBuffer> m_transferBuffers;
+    std::vector<VkFence> m_transferFences;
+    std::vector<VkCommandBuffer> m_transferCommandBuffers;
 
     VkPipelineLayout m_pipelineLayout = nullptr;
     VkPipeline m_pipeline = nullptr;
