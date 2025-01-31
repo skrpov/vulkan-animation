@@ -1,6 +1,6 @@
 # Skeletal Animation with Vulkan
 
-![Demo](./docs/video/screen_recording.gif)
+[![Watch the video](./docs/video/screen_recording.gif)](./docs/video/screen_recording.mov)
 
 *Video quality is poor after conversion, original at `/docs/video/screen_recording.mov`*
 
