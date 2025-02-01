@@ -2,9 +2,9 @@
 
 #include "device.h"
 
-class VulkanSwapchain 
+class VulkanSwapchain
 {
-public:
+  public:
     VulkanSwapchain() = default;
     ~VulkanSwapchain();
 
@@ -22,7 +22,7 @@ public:
     inline VkFormat GetFormat() const { return m_swapchainFormat; }
     inline VkExtent2D GetExtent() const { return m_swapchainExtent; }
 
-private:
+  private:
     bool m_isInitilized = false;
     VulkanDevice *m_device = nullptr;
 

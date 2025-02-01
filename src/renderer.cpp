@@ -80,7 +80,7 @@ bool Renderer::CreateFrameData()
 {
     VkDevice device = m_device.GetDevice();
     VkCommandPool commandPool = m_device.GetCommandPool();
-    
+
     {
         VkCommandBufferAllocateInfo allocateInfo = {};
         allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -366,7 +366,6 @@ bool Renderer::CreateDepthBuffer()
     VkExtent2D swapchainExtent = m_swapchain.GetExtent();
     m_depthBufferFormat = VK_FORMAT_D32_SFLOAT;
 
-
     VkImageCreateInfo imageCI = {};
     imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageCI.imageType = VK_IMAGE_TYPE_2D;
@@ -406,8 +405,8 @@ bool Renderer::InitVulkan(GLFWwindow *window)
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
     return CreateInstance() && CreateSurface(window) && m_device.Init(m_instance, m_surface) &&
-           m_swapchain.Init(&m_device, m_surface, (uint32_t)width, (uint32_t)height) && CreateDepthBuffer() && CreateDescriptorSetLayouts() && CreateFrameData() &&
-           CreatePipelineLayouts() && CreateGraphicsPipelines();
+           m_swapchain.Init(&m_device, m_surface, (uint32_t)width, (uint32_t)height) && CreateDepthBuffer() &&
+           CreateDescriptorSetLayouts() && CreateFrameData() && CreatePipelineLayouts() && CreateGraphicsPipelines();
 }
 
 static void TransitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkImageLayout oldLayout,
@@ -567,7 +566,7 @@ static void LoadAnimations(const cgltf_data *gltf, Model &model)
     }
 }
 
-bool Renderer::LoadModel(const char *path)
+bool Renderer::LoadModel(Scene &scene, const char *path)
 {
     VkDevice device = m_device.GetDevice();
     cgltf_options options = {};
@@ -575,7 +574,7 @@ bool Renderer::LoadModel(const char *path)
 
     if (cgltf_parse_file(&options, path, &gltf) == cgltf_result_success) {
         if (cgltf_load_buffers(&options, gltf, path) == cgltf_result_success) {
-            Model &model = m_models.emplace_back();
+            Model &model = scene.models.emplace_back();
             std::vector<Vertex> vertices;
             std::vector<uint32_t> indices;
 
@@ -683,12 +682,13 @@ bool Renderer::LoadModel(const char *path)
 
             const VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
             const VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
-            
+
             {
                 BufferCreateInfo bufferInfo = {};
                 bufferInfo.size = vertexBufferSize;
                 bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-                if (!m_device.CreateBuffer(bufferInfo, model.vertexBuffer) || !m_device.SetBufferData(model.vertexBuffer, 0, vertexBufferSize, vertices.data())) {
+                if (!m_device.CreateBuffer(bufferInfo, model.vertexBuffer) ||
+                    !m_device.SetBufferData(model.vertexBuffer, 0, vertexBufferSize, vertices.data())) {
                     return false;
                 }
             }
@@ -696,7 +696,8 @@ bool Renderer::LoadModel(const char *path)
                 BufferCreateInfo bufferInfo = {};
                 bufferInfo.size = vertexBufferSize;
                 bufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-                if (!m_device.CreateBuffer(bufferInfo, model.indexBuffer) || !m_device.SetBufferData(model.indexBuffer, 0, indexBufferSize, indices.data())) {
+                if (!m_device.CreateBuffer(bufferInfo, model.indexBuffer) ||
+                    !m_device.SetBufferData(model.indexBuffer, 0, indexBufferSize, indices.data())) {
                     return false;
                 }
             }
@@ -837,7 +838,8 @@ void Renderer::RenderNode(VkCommandBuffer commandBuffer, uint32_t frameIndex, Mo
             jointMatrices[i] = joints[i]->worldMatrix * inverseBindMatrices[i];
             jointMatrices[i] = rootNodeInverse * jointMatrices[i];
         }
-        m_device.SetBufferData(jointMatricesBuffer, 0, jointMatrices.size()*sizeof(jointMatrices[0]), jointMatrices.data());
+        m_device.SetBufferData(jointMatricesBuffer, 0, jointMatrices.size() * sizeof(jointMatrices[0]),
+                               jointMatrices.data());
 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 1, 1, &descriptorSet,
                                 0, nullptr);
@@ -868,28 +870,6 @@ bool Renderer::Init(GLFWwindow *window)
         return false;
     }
 
-#if 0
-    // TODO: This is broken because pipeline expect some kind of skin to be bound. So either bind a default 
-    // NULL-skin or create another pipeline.
-    if (!LoadModel("./assets/DamagedHelmet.glb")) {
-        return false;
-    }
-#else
-#if 1
-    if (!LoadModel("./assets/clone_trooper_dancing_clone_wars_style.glb")) {
-        printf("Error loading model\n");
-        return false;
-    }
-#else
-    if (!LoadModel("./assets/RiggedFigure.glb")) {
-        return false;
-    }
-#endif
-
-    Model &model = m_models.back();
-    model.playingAnimation = &model.animations[0];
-#endif
-
     m_isInitilized = true;
     return true;
 }
@@ -909,8 +889,11 @@ bool Renderer::HandleResize(GLFWwindow *window)
     return true;
 }
 
-bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
+bool Renderer::Render(Scene &scene, GLFWwindow *window, double dt)
 {
+    const auto &camera = scene.camera;
+    auto &models = scene.models;
+
     if (!m_device.WaitForTransfers()) {
         return false;
     }
@@ -933,7 +916,7 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
     VkImage swapchainImage = m_swapchain.GetImage(imageIndex);
     VkImageView swapchainImageView = m_swapchain.GetImageView(imageIndex);
 
-    for (auto &model : m_models) {
+    for (auto &model : models) {
         model.UpdateAnimations((float)dt);
         model.UpdateTransforms();
     }
@@ -1013,7 +996,7 @@ bool Renderer::Render(const Camera &camera, GLFWwindow *window, double dt)
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
                                     &m_globalDescriptors[frameIndex], 0, nullptr);
 
-            for (auto &model : m_models) {
+            for (auto &model : models) {
                 VkDeviceSize vertexBufferOffset = 0;
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, &model.vertexBuffer.buffer, &vertexBufferOffset);
                 vkCmdBindIndexBuffer(commandBuffer, model.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);

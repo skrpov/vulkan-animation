@@ -5,7 +5,7 @@ class Buffer;
 struct AllocatedBuffer;
 class VulkanDevice;
 
-struct AllocatedBuffer 
+struct AllocatedBuffer
 {
     uint32_t rc = 0;
     VkBuffer buffer = nullptr;
@@ -14,14 +14,14 @@ struct AllocatedBuffer
     void *data = nullptr;
 };
 
-struct BufferCreateInfo 
+struct BufferCreateInfo
 {
     VkDeviceSize size = 0;
     VkBufferUsageFlags usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     bool hostVisible = true;
 };
 
-class VulkanDevice 
+class VulkanDevice
 {
   public:
     VulkanDevice() = default;
@@ -73,4 +73,3 @@ class VulkanDevice
     std::vector<VkFence> m_fences;
     std::vector<AllocatedBuffer> m_tempBuffers;
 };
-

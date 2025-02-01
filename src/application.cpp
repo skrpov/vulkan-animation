@@ -11,6 +11,16 @@ static void GlfwErrorCallback(int code, const char *message)
     fprintf(stderr, "GLFW: %s\n", message);
 }
 
+bool Application::LoadScene(Scene &scene)
+{
+    if (!m_renderer.LoadModel(scene, "./assets/clone_trooper_dancing_clone_wars_style.glb")) {
+        return false;
+    }
+    Model &model = scene.models.back();
+    model.SetPlayingAnimation(0);
+    return true;
+}
+
 bool Application::Run()
 {
     glfwSetErrorCallback(GlfwErrorCallback);
@@ -33,6 +43,10 @@ bool Application::Run()
         return false;
     }
 
+    if (!LoadScene(m_scene)) {
+        return false;
+    }
+
     double lastTime = glfwGetTime();
 
     m_running = true;
@@ -44,7 +58,7 @@ bool Application::Run()
         double now = glfwGetTime();
         double dt = now - lastTime;
         lastTime = now;
-        if (!m_renderer.Render(m_camera, m_window, dt)) {
+        if (!m_renderer.Render(m_scene, m_window, dt)) {
             return false;
         }
 

@@ -12,7 +12,7 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vk_enum_string_helper.h>
 
-#define LOG_ERROR(message, ...) fprintf(stderr, "ERROR: " message "\n" ,##__VA_ARGS__)
+#define LOG_ERROR(message, ...) fprintf(stderr, "ERROR: " message "\n", ##__VA_ARGS__)
 
 #define MAX_FRAMES_IN_FLIGHT 3
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof(array[0]))
@@ -20,7 +20,7 @@
     do {                                                                                                               \
         VkResult res = call;                                                                                           \
         if (res != VK_SUCCESS) {                                                                                       \
-            LOG_ERROR("%s - %s", #call, string_VkResult(res)); \
+            LOG_ERROR("%s - %s", #call, string_VkResult(res));                                                         \
             return false;                                                                                              \
         }                                                                                                              \
     } while (0)
@@ -43,5 +43,3 @@ static const char *deviceExtensions[] = {
     "VK_KHR_swapchain",
     VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
 };
-
-

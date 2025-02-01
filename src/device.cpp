@@ -1,6 +1,6 @@
 #include "device.h"
 
-VulkanDevice::~VulkanDevice() 
+VulkanDevice::~VulkanDevice()
 {
     Shutdown();
 }
@@ -11,7 +11,7 @@ bool VulkanDevice::Init(VkInstance instance, VkSurfaceKHR surface)
     return m_isInitilized;
 }
 
-void VulkanDevice::Shutdown() 
+void VulkanDevice::Shutdown()
 {
     if (!m_isInitilized) {
         return;
@@ -121,7 +121,7 @@ bool VulkanDevice::CreateDevice()
 }
 
 bool VulkanDevice::AllocateDeviceMemory(VkMemoryRequirements requirements, VkMemoryPropertyFlags propertyFlags,
-                              VkDeviceMemory &outMemory) 
+                                        VkDeviceMemory &outMemory)
 {
     outMemory = nullptr;
     for (uint32_t i = 0; i < m_memoryProperties.memoryTypeCount; ++i) {
@@ -144,7 +144,6 @@ bool VulkanDevice::AllocateDeviceMemory(VkMemoryRequirements requirements, VkMem
     return true;
 }
 
-
 bool VulkanDevice::CreateBuffer(const BufferCreateInfo &bufferInfo, AllocatedBuffer &outBuffer)
 {
     bool hostVisible = bufferInfo.hostVisible;
@@ -158,10 +157,9 @@ bool VulkanDevice::CreateBuffer(const BufferCreateInfo &bufferInfo, AllocatedBuf
     VkMemoryRequirements requirements = {};
     vkGetBufferMemoryRequirements(m_device, outBuffer.buffer, &requirements);
 
-    const VkMemoryPropertyFlags propertyFlags = 
-        hostVisible 
-            ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-            : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    const VkMemoryPropertyFlags propertyFlags =
+        hostVisible ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                    : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     if (!AllocateDeviceMemory(requirements, propertyFlags, outBuffer.memory)) {
         return false;
     }
@@ -176,7 +174,7 @@ bool VulkanDevice::CreateBuffer(const BufferCreateInfo &bufferInfo, AllocatedBuf
     return true;
 }
 
-bool VulkanDevice::CreateCommandPool() 
+bool VulkanDevice::CreateCommandPool()
 {
     VkCommandPoolCreateInfo commandPoolCI = {};
     commandPoolCI.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -198,14 +196,16 @@ bool VulkanDevice::SetBufferData(AllocatedBuffer &buffer, VkDeviceSize offset, V
     return SetBufferData_Staged(buffer, offset, size, data);
 }
 
-bool VulkanDevice::SetBufferData_Direct(AllocatedBuffer &buffer, VkDeviceSize offset, VkDeviceSize size, const void *data)
+bool VulkanDevice::SetBufferData_Direct(AllocatedBuffer &buffer, VkDeviceSize offset, VkDeviceSize size,
+                                        const void *data)
 {
     uint8_t *copyDest = ((uint8_t *)buffer.data) + offset;
     memcpy(copyDest, data, size);
     return true;
 }
 
-bool VulkanDevice::SetBufferData_Staged(AllocatedBuffer &buffer, VkDeviceSize offset, VkDeviceSize size, const void *data)
+bool VulkanDevice::SetBufferData_Staged(AllocatedBuffer &buffer, VkDeviceSize offset, VkDeviceSize size,
+                                        const void *data)
 {
 
     AllocatedBuffer &tempBuffer = m_tempBuffers.emplace_back();
