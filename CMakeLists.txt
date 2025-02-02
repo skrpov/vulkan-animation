@@ -10,6 +10,22 @@ add_subdirectory(./vendor/volk)
 add_subdirectory(./vendor/glfw) 
 add_subdirectory(./vendor/glm) 
 
+set(shaderSources
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.vert
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.frag)
+
+foreach (sourceFile ${shaderSources}) 
+    add_custom_command(
+        OUTPUT ${sourceFile}.spv
+        COMMAND ${Vulkan_GLSLC_EXECUTABLE} ${sourceFile} -o ${sourceFile}.spv
+        DEPENDS ${sourceFile}
+        VERBATIM
+        )
+    list(APPEND shaderBinaries ${sourceFile}.spv)
+endforeach(sourceFile)
+
+add_custom_target(shaders ALL DEPENDS ${shaderBinaries})
+
 add_executable(
     app 
     ./src/device.cpp
@@ -27,6 +43,8 @@ target_include_directories(
     ./vendor/glfw/include/ 
     ./vendor/volk 
     ./vendor/imgui/)
+
+add_dependencies(app shaders)
 
 target_link_libraries(
     app 
