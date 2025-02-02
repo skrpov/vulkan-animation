@@ -207,7 +207,6 @@ bool VulkanDevice::SetBufferData_Direct(AllocatedBuffer &buffer, VkDeviceSize of
 bool VulkanDevice::SetBufferData_Staged(AllocatedBuffer &buffer, VkDeviceSize offset, VkDeviceSize size,
                                         const void *data)
 {
-
     AllocatedBuffer &tempBuffer = m_tempBuffers.emplace_back();
     VkFence &fence = m_fences.emplace_back();
     VkCommandBuffer &commandBuffer = m_commandBuffers.emplace_back();
@@ -281,3 +280,154 @@ bool VulkanDevice::WaitForTransfers()
 
     return true;
 }
+
+bool VulkanDevice::CreateImage(const ImageCreateInfo &imageInfo, AllocatedImage &outImage)
+{
+    assert(imageInfo.extent.width > 0);
+    assert(imageInfo.extent.height > 0);
+    assert(imageInfo.extent.depth > 0);
+
+    VkImageCreateInfo imageCI = {};
+    imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageCI.imageType = VK_IMAGE_TYPE_2D;
+    imageCI.format = imageInfo.format;
+    imageCI.extent = imageInfo.extent;
+    imageCI.mipLevels = 1;
+    imageCI.arrayLayers = 1;
+    imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageCI.usage = imageInfo.usage;
+
+    VK_CHECK(vkCreateImage(GetDevice(), &imageCI, nullptr, &outImage.image));
+
+    VkMemoryRequirements requirements = {};
+    vkGetImageMemoryRequirements(GetDevice(), outImage.image, &requirements);
+
+    const VkMemoryPropertyFlags propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    if (!AllocateDeviceMemory(requirements, propertyFlags, outImage.memory)) {
+        return false;
+    }
+
+    VK_CHECK(vkBindImageMemory(GetDevice(), outImage.image, outImage.memory, 0));
+
+    VkImageViewCreateInfo imageViewCI = {};
+    imageViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewCI.image = outImage.image;
+    imageViewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewCI.format = outImage.format;
+    imageViewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageViewCI.subresourceRange.baseMipLevel = 0;
+    imageViewCI.subresourceRange.levelCount = 1;
+    imageViewCI.subresourceRange.baseArrayLayer = 0;
+    imageViewCI.subresourceRange.layerCount = 1;
+    
+    VK_CHECK(vkCreateImageView(GetDevice(), &imageViewCI, nullptr, &outImage.imageView));
+
+    outImage.format = imageInfo.format;
+    outImage.extent = imageInfo.extent;
+    
+    return true;
+}
+
+void VulkanDevice::DestroyImage(AllocatedImage &image) 
+{
+    vkDestroyImageView(GetDevice(), image.imageView, nullptr);
+    vkFreeMemory(GetDevice(), image.memory, nullptr);
+    vkDestroyImage(GetDevice(), image.image, nullptr);
+}
+
+bool VulkanDevice::SetImageData(AllocatedImage &image, const void *data)
+{
+    AllocatedBuffer &tempBuffer = m_tempBuffers.emplace_back();
+    VkFence &fence = m_fences.emplace_back();
+    VkCommandBuffer &commandBuffer = m_commandBuffers.emplace_back();
+
+    VkDeviceSize size = image.GetSize();
+    assert(image.extent.depth == 1 && "Multi-layered images are not handled yet.");
+
+    BufferCreateInfo bufferInfo = {};
+    bufferInfo.size = size;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    bufferInfo.hostVisible = true;
+    if (!CreateBuffer(bufferInfo, tempBuffer) || !SetBufferData(tempBuffer, 0, size, data)) {
+        return false;
+    }
+
+    VkCommandBufferAllocateInfo allocateInfo = {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.commandPool = GetCommandPool();
+    allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocateInfo.commandBufferCount = 1;
+    VK_CHECK(vkAllocateCommandBuffers(GetDevice(), &allocateInfo, &commandBuffer));
+
+    VkFenceCreateInfo fenceCI = {};
+    fenceCI.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    VK_CHECK(vkCreateFence(GetDevice(), &fenceCI, nullptr, &fence));
+
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+    {
+        TransitionImageLayout(commandBuffer, image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+        VkBufferImageCopy region = {};
+        region.bufferOffset = 0;
+        region.bufferRowLength = GetFormatSize(image.format)*image.extent.width;
+        region.bufferImageHeight = GetFormatSize(image.format)*image.extent.height;
+        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.mipLevel = 0;
+        region.imageSubresource.baseArrayLayer = 0;
+        region.imageSubresource.layerCount = 1;
+        region.imageExtent = image.extent;
+
+        vkCmdCopyBufferToImage(commandBuffer, tempBuffer.buffer, image.image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+    }
+    VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.waitSemaphoreCount = 0;
+    submitInfo.pWaitSemaphores = nullptr;
+    submitInfo.pWaitDstStageMask = &waitStage;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    VK_CHECK(vkQueueSubmit(GetGraphicsQueue(), 1, &submitInfo, fence));
+
+    return true;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

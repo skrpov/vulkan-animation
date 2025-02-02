@@ -5,13 +5,22 @@ class Buffer;
 struct AllocatedBuffer;
 class VulkanDevice;
 
-struct AllocatedBuffer
+struct ImageCreateInfo 
 {
-    uint32_t rc = 0;
-    VkBuffer buffer = nullptr;
+    VkFormat format;
+    VkExtent3D extent = {};
+    VkImageUsageFlags usage;
+};
+
+struct AllocatedImage 
+{
+    VkImage image = nullptr;
+    VkImageView imageView = nullptr;
     VkDeviceMemory memory = nullptr;
-    VkDeviceSize size = 0;
-    void *data = nullptr;
+    VkFormat format;
+    VkExtent3D extent = {};
+
+    inline VkDeviceSize GetSize() const { return GetFormatSize(format)*extent.width*extent.height*extent.depth; }
 };
 
 struct BufferCreateInfo
@@ -19,6 +28,15 @@ struct BufferCreateInfo
     VkDeviceSize size = 0;
     VkBufferUsageFlags usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     bool hostVisible = true;
+};
+
+struct AllocatedBuffer
+{
+    uint32_t rc = 0;
+    VkBuffer buffer = nullptr;
+    VkDeviceMemory memory = nullptr;
+    VkDeviceSize size = 0;
+    void *data = nullptr;
 };
 
 class VulkanDevice
@@ -49,6 +67,10 @@ class VulkanDevice
     void DestroyBuffer(AllocatedBuffer &buffer);
     bool SetBufferData(AllocatedBuffer &buffer, VkDeviceSize offset, VkDeviceSize size, const void *data);
     bool WaitForTransfers();
+
+    bool CreateImage(const ImageCreateInfo &imageInfo, AllocatedImage &outImage);
+    void DestroyImage(AllocatedImage &image);
+    bool SetImageData(AllocatedImage &image, const void *data);
 
   private:
     bool ChoosePhysicalDevice(VkInstance instance, VkSurfaceKHR surface);
