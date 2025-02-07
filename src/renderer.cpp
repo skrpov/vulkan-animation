@@ -51,7 +51,7 @@ bool Renderer::CreateDescriptorSetLayouts()
 
         const VkDescriptorSetLayoutBinding bindings[] = {
             // binding; descriptorType; descriptorCount; stageFlags; pImmutableSamplers;
-            {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr},
+            {0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
         };
 
         VkDescriptorSetLayoutCreateInfo layoutCI = {};
@@ -1125,6 +1125,7 @@ bool Renderer::Render(Scene &scene, GLFWwindow *window, double dt)
 
             GlobalUniforms globalUniforms = {};
             globalUniforms.viewProjection = projection * view;
+            globalUniforms.cameraPosition = camera.position;
             m_device.SetBufferData(m_globalUniformBuffers[frameIndex], 0, sizeof(globalUniforms), &globalUniforms);
             vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
                                     &m_globalDescriptors[frameIndex], 0, nullptr);

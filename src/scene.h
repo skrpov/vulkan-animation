@@ -19,6 +19,7 @@ struct Constants
 struct GlobalUniforms
 {
     glm::mat4 viewProjection;
+    glm::vec3 cameraPosition;
 };
 
 struct Camera
