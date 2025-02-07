@@ -52,6 +52,8 @@ inline VkDeviceSize GetFormatSize(VkFormat format)
         return sizeof(float)*4;
     case VK_FORMAT_R32G32B32A32_UINT:
         return sizeof(uint32_t)*4;
+    case VK_FORMAT_R8G8B8A8_UNORM:
+        return sizeof(uint32_t);
     }
 
     assert(false && "Unhandled image format");

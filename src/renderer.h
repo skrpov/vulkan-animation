@@ -56,8 +56,12 @@ class Renderer
     VkDescriptorPool m_descriptorPool;
     VkDescriptorSetLayout m_jointsDescriptorsLayout;
     VkDescriptorSetLayout m_globalDescriptorsLayout;
+    VkDescriptorSetLayout m_materialDescriptorsLayout;
     AllocatedBuffer m_globalUniformBuffers[MAX_FRAMES_IN_FLIGHT] = {};
     VkDescriptorSet m_globalDescriptors[MAX_FRAMES_IN_FLIGHT] = {};
+    VkDescriptorSet m_materialDescriptors[MAX_FRAMES_IN_FLIGHT] = {};
+
+    VkSampler m_defaultSampler = nullptr;
 
     VkPipelineLayout m_pipelineLayout = nullptr;
     VkPipeline m_pipeline = nullptr;

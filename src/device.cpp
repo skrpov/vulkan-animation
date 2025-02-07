@@ -232,6 +232,7 @@ bool VulkanDevice::SetBufferData_Staged(AllocatedBuffer &buffer, VkDeviceSize of
 
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
     {
         VkBufferCopy region = {};
@@ -313,7 +314,7 @@ bool VulkanDevice::CreateImage(const ImageCreateInfo &imageInfo, AllocatedImage 
     imageViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     imageViewCI.image = outImage.image;
     imageViewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    imageViewCI.format = outImage.format;
+    imageViewCI.format = imageInfo.format;
     imageViewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     imageViewCI.subresourceRange.baseMipLevel = 0;
     imageViewCI.subresourceRange.levelCount = 1;
@@ -346,9 +347,12 @@ bool VulkanDevice::SetImageData(AllocatedImage &image, const void *data)
 
     BufferCreateInfo bufferInfo = {};
     bufferInfo.size = size;
-    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     bufferInfo.hostVisible = true;
-    if (!CreateBuffer(bufferInfo, tempBuffer) || !SetBufferData(tempBuffer, 0, size, data)) {
+    if (!CreateBuffer(bufferInfo, tempBuffer)) {
+        return false;
+    }
+    if (!SetBufferData(tempBuffer, 0, size, data)) {
         return false;
     }
 
@@ -365,18 +369,20 @@ bool VulkanDevice::SetImageData(AllocatedImage &image, const void *data)
 
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
     {
         TransitionImageLayout(commandBuffer, image.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
         VkBufferImageCopy region = {};
         region.bufferOffset = 0;
-        region.bufferRowLength = GetFormatSize(image.format)*image.extent.width;
-        region.bufferImageHeight = GetFormatSize(image.format)*image.extent.height;
+        region.bufferRowLength = image.extent.width;
+        region.bufferImageHeight = image.extent.height;
         region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         region.imageSubresource.mipLevel = 0;
         region.imageSubresource.baseArrayLayer = 0;
         region.imageSubresource.layerCount = 1;
+        region.imageOffset = {};
         region.imageExtent = image.extent;
 
         vkCmdCopyBufferToImage(commandBuffer, tempBuffer.buffer, image.image, VK_IMAGE_LAYOUT_GENERAL, 1, &region);

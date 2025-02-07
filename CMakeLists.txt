@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
 project(VulkanAnimation)
 
 find_package(Vulkan REQUIRED)
@@ -28,16 +29,25 @@ add_custom_target(shaders ALL DEPENDS ${shaderBinaries})
 
 add_executable(
     app 
+    ./src/stb_image.cpp
+    ./src/cgltf.cpp
     ./src/device.cpp
     ./src/swapchain.cpp
     ./src/renderer.cpp
     ./src/application.cpp
     ./src/main.cpp) 
 
+target_compile_options(
+    app 
+    PRIVATE 
+    -Wall 
+    -Wextra)
+
 target_include_directories( 
     app 
     PRIVATE 
     ${Vulkan_INCLUDE_DIRS}
+    ./vendor/stb
     ./vendor/cgltf/
     ./vendor/glm/
     ./vendor/glfw/include/ 

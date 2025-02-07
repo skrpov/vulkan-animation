@@ -1,6 +1,6 @@
 #include "renderer.h"
-#define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
+#include "stb_image.h"
 
 bool Renderer::CreateInstance()
 {
@@ -37,6 +37,7 @@ bool Renderer::CreateDescriptorSetLayouts()
         // type; descriptorCount;
         {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 4096},
         {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4096},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4096},
     };
 
     VkDescriptorPoolCreateInfo descriptorPoolCI = {};
@@ -58,6 +59,29 @@ bool Renderer::CreateDescriptorSetLayouts()
         layoutCI.bindingCount = ARRAY_COUNT(bindings);
         layoutCI.pBindings = bindings;
         VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutCI, nullptr, &m_globalDescriptorsLayout));
+    }
+
+    { // Material descriptors
+        const VkDescriptorSetLayoutBinding bindings[] = {
+            {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+            {1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+        };
+
+        VkDescriptorSetLayoutCreateInfo layoutCI = {};
+        layoutCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutCI.bindingCount = ARRAY_COUNT(bindings);
+        layoutCI.pBindings = bindings;
+        VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutCI, nullptr, &m_materialDescriptorsLayout));
+
+        VkSamplerCreateInfo samplerCI = {};
+        samplerCI.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerCI.magFilter = VK_FILTER_LINEAR;
+        samplerCI.minFilter = VK_FILTER_LINEAR;
+        samplerCI.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerCI.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerCI.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;  
+        samplerCI.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        VK_CHECK(vkCreateSampler(device, &samplerCI, nullptr, &m_defaultSampler));
     }
 
     { // Joints descriptors
@@ -155,7 +179,7 @@ bool Renderer::CreatePipelineLayouts()
     range.offset = 0;
     range.size = sizeof(Constants);
 
-    const VkDescriptorSetLayout layouts[] = {m_globalDescriptorsLayout, m_jointsDescriptorsLayout};
+    const VkDescriptorSetLayout layouts[] = {m_globalDescriptorsLayout, m_jointsDescriptorsLayout, m_materialDescriptorsLayout};
 
     VkPipelineLayoutCreateInfo pipelineLayoutCI = {};
     pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -483,7 +507,6 @@ static void LoadAnimations(const cgltf_data *gltf, Model &model)
             }
 
             const float *times = nullptr;
-            uint32_t timeCount = 0;
 
             { // Load times
                 const auto *accessor = sampler->input;
@@ -491,7 +514,6 @@ static void LoadAnimations(const cgltf_data *gltf, Model &model)
                 const auto *buffer = bufferView->buffer;
                 const auto *data = ((const uint8_t *)buffer->data) + bufferView->offset + accessor->offset;
                 times = (const float *)data;
-                timeCount = accessor->count;
 
                 assert(accessor->component_type == cgltf_component_type_r_32f);
                 assert(accessor->type == cgltf_type_scalar);
@@ -540,6 +562,55 @@ static void LoadAnimations(const cgltf_data *gltf, Model &model)
     }
 }
 
+static bool LoadTextureView(VulkanDevice &device, const std::string &modelPath, cgltf_texture_view textureView, 
+                            AllocatedImage &outImage)
+{
+    if (!textureView.texture) {
+        return false;
+    }
+
+    auto *texture = textureView.texture;
+    auto *image = texture->image;
+    uint8_t *imageData = nullptr;
+    int width = 0;
+    int height = 0;
+    int channels  = 0;
+
+    if (image->buffer_view) {
+        auto *bufferView = image->buffer_view;
+        auto *buffer = bufferView->buffer;
+        auto *data = ((uint8_t *)buffer->data) + bufferView->offset;
+
+        imageData = stbi_load_from_memory(data, bufferView->size, &width, &height, &channels, 4);
+    } else if (image->uri) {
+        std::string fullPath = modelPath.substr(0, modelPath.find_last_of('/') + 1) + image->uri;
+
+        imageData = stbi_load(fullPath.c_str(), &width, &height, &channels, 4);
+    }
+
+    if (!imageData) {
+        return false;
+    }
+
+    ImageCreateInfo imageInfo = {};
+    imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+    imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    imageInfo.extent.width = width;
+    imageInfo.extent.height = height;
+    imageInfo.extent.depth = 1;
+
+    if (!device.CreateImage(imageInfo, outImage)) {
+        return false;
+    }
+    if (!device.SetImageData(outImage, imageData)) {
+        return false;
+    }
+
+    stbi_image_free(imageData);
+
+    return true;
+}
+
 bool Renderer::LoadModel(Scene &scene, const char *path)
 {
     VkDevice device = m_device.GetDevice();
@@ -556,6 +627,83 @@ bool Renderer::LoadModel(Scene &scene, const char *path)
             auto &rootNode = model.rootNode;
             for (const auto *node = scene->nodes; node != scene->nodes + scene->nodes_count; ++node) {
                 LoadNode(gltf, *node, rootNode.children.emplace_back());
+            }
+
+            for (const auto *mat = gltf->materials; mat != gltf->materials + gltf->materials_count; ++mat) {
+                Material &outMat = model.materials.emplace_back();
+                std::string modelPath = path;
+
+                if (mat->has_pbr_metallic_roughness) {
+                    auto mr = mat->pbr_metallic_roughness;
+                    if (!LoadTextureView(m_device, modelPath, mr.base_color_texture, outMat.albedoMap)) {
+                        LOG_ERROR("Failed to load albedo texture for model");
+                        return false;
+                    }
+
+                    {
+                        MaterialUniforms uniforms = {};
+                        uniforms.albedoFactor = glm::make_vec4(mr.base_color_factor);
+                        uniforms.metallicFactor = mr.metallic_factor;
+                        uniforms.roughnessFactor = mr.roughness_factor;
+
+                        BufferCreateInfo bufferInfo = {};
+                        bufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+                        bufferInfo.size = sizeof(uniforms);
+                        bufferInfo.hostVisible = true;
+
+                        if (!m_device.CreateBuffer(bufferInfo, outMat.uniforms)) {
+                            return false;
+                        }
+                        if (!m_device.SetBufferData(outMat.uniforms, 0, sizeof(uniforms), &uniforms)) {
+                            return false;
+                        }
+                    }
+
+                    VkDescriptorSetAllocateInfo allocateInfo = {};
+                    allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+                    allocateInfo.descriptorPool = m_descriptorPool;
+                    allocateInfo.descriptorSetCount = 1;
+                    allocateInfo.pSetLayouts = &m_materialDescriptorsLayout;
+                    VK_CHECK(vkAllocateDescriptorSets(device, &allocateInfo, &outMat.descriptorSet));
+
+                    assert(m_defaultSampler != nullptr);
+
+                    VkDescriptorImageInfo imageInfo = {};
+                    imageInfo.sampler = m_defaultSampler;
+                    imageInfo.imageView = outMat.albedoMap.imageView;
+                    imageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+                    VkWriteDescriptorSet writeSet = {};
+                    writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    writeSet.dstSet = outMat.descriptorSet;
+                    writeSet.dstBinding = 0;
+                    writeSet.dstArrayElement = 0;
+                    writeSet.descriptorCount = 1;
+                    writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                    writeSet.pImageInfo = &imageInfo;
+
+                    VkDescriptorBufferInfo bufferInfo = {};
+                    bufferInfo.buffer = outMat.uniforms.buffer;
+                    bufferInfo.offset = 0;
+                    bufferInfo.range = sizeof(MaterialUniforms);
+
+                    VkWriteDescriptorSet writeSet2 = {};
+                    writeSet2.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    writeSet2.dstSet = outMat.descriptorSet;
+                    writeSet2.dstBinding = 1;
+                    writeSet2.dstArrayElement = 0;
+                    writeSet2.descriptorCount = 1;
+                    writeSet2.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                    writeSet2.pBufferInfo = &bufferInfo;
+
+                    const VkWriteDescriptorSet writeSets[] = {writeSet, writeSet2};
+
+                    vkUpdateDescriptorSets(device, ARRAY_COUNT(writeSets), writeSets, 0, nullptr);
+
+                } else {
+                    LOG_ERROR("Model does not support pbr metallic roughness workflow");
+                    return false;
+                }
             }
 
             for (const auto *mesh = gltf->meshes; mesh != gltf->meshes + gltf->meshes_count; ++mesh) {
@@ -605,6 +753,8 @@ bool Renderer::LoadModel(Scene &scene, const char *path)
                         }
                     }
 
+                    assert(texCoords);
+
                     const uint32_t indexOffset = (uint32_t)indices.size();
                     const uint32_t vertexOffset = (uint32_t)vertices.size();
 
@@ -632,6 +782,8 @@ bool Renderer::LoadModel(Scene &scene, const char *path)
                         }
                     }
 
+                    assert(texCoords != nullptr);
+
                     for (uint32_t i = 0; i < positionCount; ++i) {
                         Vertex v = {};
                         v.position = glm::make_vec3(&positions[i * 3]);
@@ -647,6 +799,7 @@ bool Renderer::LoadModel(Scene &scene, const char *path)
                     auto &outPrim = model.primitives.emplace_back();
                     outPrim.indexOffset = indexOffset;
                     outPrim.indexCount = (uint32_t)indices.size() - indexOffset;
+                    outPrim.material = prim->material ? &model.materials[cgltf_material_index(gltf, prim->material)] : nullptr;
                 }
 
                 auto &outMesh = model.meshes.emplace_back();
@@ -823,6 +976,12 @@ void Renderer::RenderNode(VkCommandBuffer commandBuffer, uint32_t frameIndex, Mo
         const auto &mesh = model.meshes[node.meshIndex];
         for (uint32_t i = 0; i < mesh.primitiveCount; ++i) {
             auto &prim = model.primitives[mesh.primitiveOffset + i];
+
+            if (prim.material != nullptr) {
+                vkCmdBindDescriptorSets(
+                    commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, 
+                    m_pipelineLayout, 2, 1, &prim.material->descriptorSet, 0, nullptr);
+            }
 
             Constants constants = {};
             constants.model = worldMatrix;

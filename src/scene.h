@@ -32,8 +32,24 @@ struct Camera
     bool flipY = true;
 };
 
+struct MaterialUniforms 
+{
+    glm::vec4 albedoFactor;
+    float metallicFactor;
+    float roughnessFactor;
+};
+
+struct Material 
+{
+    AllocatedImage metallicRoughnessMap;
+    AllocatedImage albedoMap;
+    VkDescriptorSet descriptorSet;
+    AllocatedBuffer uniforms;
+};
+
 struct Primitive
 {
+    Material *material = nullptr;
     uint32_t indexOffset;
     uint32_t indexCount;
 };
@@ -160,6 +176,7 @@ struct Model
     std::vector<Primitive> primitives;
     std::vector<Animation> animations;
     std::vector<Skin> skins;
+    std::vector<Material> materials;
 
     // TODO:
     //
