@@ -67,6 +67,7 @@ bool Application::Run()
         glfwSetWindowTitle(m_window, windowTitle);
     }
 
+    m_renderer.UnloadScene(m_scene);
     m_renderer.Shutdown();
 
     glfwDestroyWindow(m_window);

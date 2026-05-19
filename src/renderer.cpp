@@ -42,6 +42,7 @@ bool Renderer::CreateDescriptorSetLayouts()
 
     VkDescriptorPoolCreateInfo descriptorPoolCI = {};
     descriptorPoolCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptorPoolCI.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     descriptorPoolCI.maxSets = 4096;
     descriptorPoolCI.poolSizeCount = ARRAY_COUNT(poolSizes);
     descriptorPoolCI.pPoolSizes = poolSizes;
@@ -1169,6 +1170,30 @@ bool Renderer::Render(Scene &scene, GLFWwindow *window, double dt)
     return true;
 }
 
+void Renderer::UnloadScene(Scene &scene)
+{
+    VkDevice device = m_device.GetDevice();
+    vkDeviceWaitIdle(device);
+
+    for (auto &model : scene.models) {
+        for (auto &mat : model.materials) {
+            vkFreeDescriptorSets(device, m_descriptorPool, 1, &mat.descriptorSet);
+            m_device.DestroyImage(mat.albedoMap);
+            m_device.DestroyImage(mat.metallicRoughnessMap);
+            m_device.DestroyBuffer(mat.uniforms);
+        }
+        for (auto &skin : model.skins) {
+            vkFreeDescriptorSets(device, m_descriptorPool, MAX_FRAMES_IN_FLIGHT, skin.descriptorSet);
+            for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+                m_device.DestroyBuffer(skin.jointMatricesBuffer[i]);
+            }
+        }
+        m_device.DestroyBuffer(model.vertexBuffer);
+        m_device.DestroyBuffer(model.indexBuffer);
+    }
+    scene.models.clear();
+}
+
 void Renderer::Shutdown()
 {
     if (!m_isInitilized) {
@@ -1176,7 +1201,30 @@ void Renderer::Shutdown()
     }
     m_isInitilized = false;
 
-    vkDeviceWaitIdle(m_device.GetDevice());
+    VkDevice device = m_device.GetDevice();
+    vkDeviceWaitIdle(device);
+
+    vkDestroyPipeline(device, m_pipeline, nullptr);
+    vkDestroyPipelineLayout(device, m_pipelineLayout, nullptr);
+
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        vkDestroyFence(device, m_commandBufferReady[i], nullptr);
+        vkDestroySemaphore(device, m_imageReady[i], nullptr);
+        vkDestroySemaphore(device, m_renderFinished[i], nullptr);
+        m_device.DestroyBuffer(m_globalUniformBuffers[i]);
+    }
+
+    vkDestroyDescriptorPool(device, m_descriptorPool, nullptr);
+    vkDestroyDescriptorSetLayout(device, m_globalDescriptorsLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device, m_jointsDescriptorsLayout, nullptr);
+    vkDestroyDescriptorSetLayout(device, m_materialDescriptorsLayout, nullptr);
+    vkDestroySampler(device, m_defaultSampler, nullptr);
+
+    DestroyDepthBuffer();
+
     m_swapchain.Shutdown();
     m_device.Shutdown();
+
+    vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+    vkDestroyInstance(m_instance, nullptr);
 }

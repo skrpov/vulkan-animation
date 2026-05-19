@@ -11,6 +11,7 @@ class Renderer
     bool Init(GLFWwindow *window);
     bool RenderUI();
     bool Render(Scene &scene, GLFWwindow *window, double dt);
+    void UnloadScene(Scene &scene);
     void Shutdown();
     bool LoadModel(Scene &scene, const char *path);
 
