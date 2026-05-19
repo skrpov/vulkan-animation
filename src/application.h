@@ -18,15 +18,14 @@ class Application
         static Application app;
         return app;
     }
+    inline void StopRunning() { m_running = false; };
     bool Run();
-    inline void StopRunning()
-    {
-        m_running = false;
-    };
 
   private:
+    bool LoadScene(Scene &scene);
+
     Renderer m_renderer;
     GLFWwindow *m_window = nullptr;
     bool m_running = false;
-    Camera m_camera;
+    Scene m_scene;
 };
